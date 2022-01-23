@@ -1,0 +1,94 @@
+use std::str::FromStr;
+use crate::ast::*;
+
+grammar();
+
+// Helpers
+
+Comma<T>: Vec<T> = { // (0)
+    <mut v:(<T> ",")*> <e:T?> => match e { // (1)
+        None=> v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+// Shared
+
+pub Name: String = {
+    <s:r"[A-Za-z][A-Za-z0-9_\-]*"> => s.to_string()
+}
+
+// Function definitions
+pub FunctionNameString: String = {
+    "#" <s:Name> => s
+}
+
+pub Function: Function = {
+    <n: FunctionNameString> "\n" <p: Patterns> => Function { name: n, patterns: p }
+}
+
+Patterns: Vec<Pattern> = {
+    <mut ps: Patterns> <p: Pattern> => { ps.push(p); ps },
+    <p: Pattern> => vec![p],
+}
+
+pub Pattern: Pattern = {
+    <n:Name> "->" <e:Expr> "\n" <g: Guards> => Pattern {start: n, result: e, guards: g},
+    <n:Name> "->" <e:Expr> "\n" => Pattern {start: n, result: e, guards: Vec::new()},
+}
+
+Guards: Vec<Guard> = {
+    <mut gs: Guards> "\n" <g: Guard> => { gs.push(g); gs },
+    <g: Guard> => vec![g],
+}
+
+pub Guard: Guard = {
+    "|" <n:Expr> "\n" => Guard {}
+}
+
+// String terms
+
+pub StringTerm: String = {
+    <s: r#""[^"\n]*""#> => s[1..s.len()-1].to_string()
+}
+
+// Operations
+pub Expr: Box<Expr> = {
+    Expr ExprOp Factor => Box::new(Expr::Op(<>)),
+    Factor,
+};
+
+ExprOp: Opcode = { // (3)
+    "+" => Opcode::Add,
+    "-" => Opcode::Sub,
+};
+
+Factor: Box<Expr> = {
+    Factor FactorOp Term => Box::new(Expr::Op(<>)),
+    Term,
+};
+
+FactorOp: Opcode = {
+    "*" => Opcode::Mul,
+    "/" => Opcode::Div,
+};
+
+Term: Box<Expr> = {
+    <n:Name> "(" <c: Comma<Expr>> ")" => Box::new(Expr::FuncCall(n, c)),
+    Num => Box::new(Expr::Number(<>)),
+    "(" <Expr> ")",
+};
+
+Num: i32 = {
+    r"[0-9]+" => i32::from_str(<>).unwrap(),
+};
+
+match {
+    r"[ \t]*" => { }, // The default whitespace skipping is disabled an `ignore pattern` is specified
+    r"//[^\n\r]*[\n\r]*" => { }, // Skip `// comments`
+    r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/" => { },  // Skip `/* comments */`
+    _
+}
