@@ -41,13 +41,31 @@ fn test_term_parser() {
     assert_eq!(language_definition::NameParser::new()
                    .parse("name").unwrap(), "name");
     assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("5").unwrap()), "5");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
         .parse("5 + 2 * 3").unwrap()), "(5 + (2 * 3))");
     assert_eq!(format!("{:?}", language_definition::ExprParser::new()
-        .parse("5").unwrap()), "5");
+        .parse("5 - 2 % 3").unwrap()), "(5 - (2 % 3))");
     assert_eq!(format!("{:?}", language_definition::ExprParser::new()
         .parse("func(1)").unwrap()), "func(1)");
     assert_eq!(format!("{:?}", language_definition::ExprParser::new()
         .parse("func()").unwrap()), "func()");
     assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("func").unwrap()), "func");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
         .parse("func(1, 2 + 3)").unwrap()), "func(1, (2 + 3))");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("2 + 3 == 5").unwrap()), "((2 + 3) == 5)");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("2 + 3 <= 5").unwrap()), "((2 + 3) <= 5)");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("2 + 3 >= 5").unwrap()), "((2 + 3) >= 5)");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("2 + 3 < 5").unwrap()), "((2 + 3) < 5)");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("2 + 3 > 5").unwrap()), "((2 + 3) > 5)");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("{5, 6, 7}").unwrap()), "{5, 6, 7}");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("{5, func(), 7}").unwrap()), "{5, func(), 7}");
 }

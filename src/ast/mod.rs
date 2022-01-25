@@ -12,7 +12,7 @@ pub struct Function {
 pub struct Pattern {
     pub start: String,
     pub result: Box<Expr>,
-    pub guards: Vec<Guard>
+    pub guards: Vec<Guard>,
 }
 
 pub struct Guard {}
@@ -21,6 +21,8 @@ pub enum Expr {
     Number(i32),
     Op(Box<Expr>, Opcode, Box<Expr>),
     FuncCall(String, Vec<Box<Expr>>),
+    Var(String),
+    Tuple(Vec<Box<Expr>>),
     Error,
 }
 
@@ -33,17 +35,25 @@ pub enum ExprSymbol {
 pub enum Opcode {
     Mul,
     Div,
+    Mod,
     Add,
     Sub,
+    Eq,
+    Leq,
+    Lt,
+    Geq,
+    Gt,
 }
 
 impl Debug for Expr {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         use self::Expr::*;
         match *self {
+            Var(ref s) => write!(fmt, "{}", s),
             FuncCall(ref n, ref v) => write!(fmt, "{}({})", n, v.iter().map(|i| format!("{:?}", i)).collect::<Vec<String>>().join(", ")),
             Number(n) => write!(fmt, "{:?}", n),
             Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
+            Tuple(ref l) => write!(fmt, "{{{}}}", l.iter().map(|i| format!("{:?}", i)).collect::<Vec<String>>().join(", ")),
             Error => write!(fmt, "error"),
         }
     }
@@ -65,8 +75,14 @@ impl Debug for Opcode {
         match *self {
             Mul => write!(fmt, "*"),
             Div => write!(fmt, "/"),
+            Mod => write!(fmt, "%"),
             Add => write!(fmt, "+"),
             Sub => write!(fmt, "-"),
+            Eq => write!(fmt, "=="),
+            Leq => write!(fmt, "<="),
+            Lt => write!(fmt, "<"),
+            Geq => write!(fmt, ">="),
+            Gt => write!(fmt, ">"),
         }
     }
 }
