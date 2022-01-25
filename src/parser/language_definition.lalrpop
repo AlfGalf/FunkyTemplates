@@ -16,7 +16,6 @@ Comma<T>: Vec<T> = { // (0)
 };
 
 // Shared
-
 pub Name: String = {
     <s:r"[A-Za-z][A-Za-z0-9_\-]*"> => s.to_string()
 }
@@ -56,12 +55,28 @@ pub StringTerm: String = {
 }
 
 // Operations
+
+
+
 pub Expr: Box<Expr> = {
-    Expr ExprOp Factor => Box::new(Expr::Op(<>)),
+    Expr ExprOp AddSubExpr => Box::new(Expr::Op(<>)),
+    AddSubExpr,
+}
+
+ExprOp: Opcode = { // (3)
+    "==" => Opcode::Eq,
+    "<=" => Opcode::Leq,
+    ">=" => Opcode::Geq,
+    "<" => Opcode::Lt,
+    ">" => Opcode::Gt,
+};
+
+AddSubExpr: Box<Expr> = {
+    AddSubExpr AddSubExprOp Factor => Box::new(Expr::Op(<>)),
     Factor,
 };
 
-ExprOp: Opcode = { // (3)
+AddSubExprOp: Opcode = { // (3)
     "+" => Opcode::Add,
     "-" => Opcode::Sub,
 };
@@ -74,12 +89,15 @@ Factor: Box<Expr> = {
 FactorOp: Opcode = {
     "*" => Opcode::Mul,
     "/" => Opcode::Div,
+    "%" => Opcode::Mod,
 };
 
 Term: Box<Expr> = {
+    <n:Name> => Box::new(Expr::Var(n)),
     <n:Name> "(" <c: Comma<Expr>> ")" => Box::new(Expr::FuncCall(n, c)),
     Num => Box::new(Expr::Number(<>)),
     "(" <Expr> ")",
+    "{" <Comma<Expr>> "}" => Box::new(Expr::Tuple(<>)),
 };
 
 Num: i32 = {
