@@ -1,12 +1,12 @@
+// Adapted from LALRPOP book examples
 use std::str::FromStr;
 use crate::ast::*;
 
 grammar();
 
 // Helpers
-
-Comma<T>: Vec<T> = { // (0)
-    <mut v:(<T> ",")*> <e:T?> => match e { // (1)
+Comma<T>: Vec<T> = {
+    <mut v:(<T> ",")*> <e:T?> => match e {
         None=> v,
         Some(e) => {
             v.push(e);
@@ -20,13 +20,19 @@ pub Name: String = {
     <s:r"[A-Za-z][A-Za-z0-9_\-]*"> => s.to_string()
 }
 
+// Full Template
+pub Template: Template = {
+    <mut t:Template> <f:Function> => {t.functions.push(f); t},
+    Function => Template { functions: vec![<>] }
+}
+
 // Function definitions
 pub FunctionNameString: String = {
     "#" <s:Name> => s
 }
 
 pub Function: Function = {
-    <n: FunctionNameString> "\n" <p: Patterns> => Function { name: n, patterns: p }
+    <n: FunctionNameString> "\n" <p: Patterns> => Function { name: n, patterns: p },
 }
 
 Patterns: Vec<Pattern> = {
@@ -35,8 +41,8 @@ Patterns: Vec<Pattern> = {
 }
 
 pub Pattern: Pattern = {
-    <n:Name> "->" <e:Expr> "\n" <g: Guards> => Pattern {start: n, result: e, guards: g},
-    <n:Name> "->" <e:Expr> "\n" => Pattern {start: n, result: e, guards: Vec::new()},
+    <n:Expr> "->" <e:Expr> "\n" <g: Guards> => Pattern {start: n, result: e, guards: g},
+    <n:Expr> "->" <e:Expr> "\n" => Pattern {start: n, result: e, guards: Vec::new()},
 }
 
 Guards: Vec<Guard> = {
@@ -49,21 +55,32 @@ pub Guard: Guard = {
 }
 
 // String terms
-
 pub StringTerm: String = {
     <s: r#""[^"\n]*""#> => s[1..s.len()-1].to_string()
 }
 
 // Operations
 
-
-
 pub Expr: Box<Expr> = {
-    Expr ExprOp AddSubExpr => Box::new(Expr::Op(<>)),
+    LogicExpr
+}
+
+LogicExpr: Box<Expr> = {
+    EqualityExpr LogicOp AddSubExpr => Box::new(Expr::Op(<>)),
+    EqualityExpr,
+}
+
+LogicOp: Opcode = {
+    "&&" => Opcode::And,
+    "||" => Opcode::Or,
+};
+
+EqualityExpr: Box<Expr> = {
+    EqualityExpr EqualityOp AddSubExpr => Box::new(Expr::Op(<>)),
     AddSubExpr,
 }
 
-ExprOp: Opcode = { // (3)
+EqualityOp: Opcode = {
     "==" => Opcode::Eq,
     "<=" => Opcode::Leq,
     ">=" => Opcode::Geq,
@@ -76,7 +93,7 @@ AddSubExpr: Box<Expr> = {
     Factor,
 };
 
-AddSubExprOp: Opcode = { // (3)
+AddSubExprOp: Opcode = {
     "+" => Opcode::Add,
     "-" => Opcode::Sub,
 };
@@ -92,10 +109,15 @@ FactorOp: Opcode = {
     "%" => Opcode::Mod,
 };
 
+UnaryOp: UnaryOp = {
+    "!" => UnaryOp::Not,
+};
+
 Term: Box<Expr> = {
     <n:Name> => Box::new(Expr::Var(n)),
     <n:Name> "(" <c: Comma<Expr>> ")" => Box::new(Expr::FuncCall(n, c)),
     Num => Box::new(Expr::Number(<>)),
+    UnaryOp Term => Box::new(Expr::Unary(<>)),
     "(" <Expr> ")",
     "{" <Comma<Expr>> "}" => Box::new(Expr::Tuple(<>)),
 };
