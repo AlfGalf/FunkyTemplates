@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Error, Formatter};
 
-pub struct Top {
+pub struct Template {
     pub functions: Vec<Function>,
 }
 
@@ -10,7 +10,7 @@ pub struct Function {
 }
 
 pub struct Pattern {
-    pub start: String,
+    pub start: Box<Expr>,
     pub result: Box<Expr>,
     pub guards: Vec<Guard>,
 }
@@ -20,14 +20,10 @@ pub struct Guard {}
 pub enum Expr {
     Number(i32),
     Op(Box<Expr>, Opcode, Box<Expr>),
+    Unary(UnaryOp, Box<Expr>),
     FuncCall(String, Vec<Box<Expr>>),
     Var(String),
     Tuple(Vec<Box<Expr>>),
-    Error,
-}
-
-pub enum ExprSymbol {
-    Op(Box<ExprSymbol>, Opcode, Box<ExprSymbol>),
     Error,
 }
 
@@ -43,6 +39,13 @@ pub enum Opcode {
     Lt,
     Geq,
     Gt,
+    And,
+    Or,
+}
+
+#[derive(Copy, Clone)]
+pub enum UnaryOp {
+    Not
 }
 
 impl Debug for Expr {
@@ -54,16 +57,7 @@ impl Debug for Expr {
             Number(n) => write!(fmt, "{:?}", n),
             Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
             Tuple(ref l) => write!(fmt, "{{{}}}", l.iter().map(|i| format!("{:?}", i)).collect::<Vec<String>>().join(", ")),
-            Error => write!(fmt, "error"),
-        }
-    }
-}
-
-impl<'input> Debug for ExprSymbol {
-    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
-        use self::ExprSymbol::*;
-        match *self {
-            Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
+            Unary(o, ref t) => write!(fmt, "{:?}({:?})", o, t),
             Error => write!(fmt, "error"),
         }
     }
@@ -83,13 +77,24 @@ impl Debug for Opcode {
             Lt => write!(fmt, "<"),
             Geq => write!(fmt, ">="),
             Gt => write!(fmt, ">"),
+            And => write!(fmt, "&&"),
+            Or => write!(fmt, "||"),
+        }
+    }
+}
+
+impl Debug for UnaryOp {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
+        use self::UnaryOp::*;
+        match *self {
+            Not => write!(fmt, "!"),
         }
     }
 }
 
 impl Debug for Pattern {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
-        write!(fmt, "{} -> {:?}", self.start, self.result)
+        write!(fmt, "{:?} -> {:?}", self.start, self.result)
     }
 }
 
@@ -97,5 +102,12 @@ impl Debug for Function {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         write!(fmt, "#{}\n{}", self.name, self.patterns.iter()
             .map(|p| format!("{:?}", p)).collect::<Vec<String>>().join("\n"))
+    }
+}
+
+impl Debug for Template {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
+        write!(fmt, "{}", self.functions.iter()
+            .map(|f| format!("{:?}", f)).collect::<Vec<String>>().join("\n"))
     }
 }

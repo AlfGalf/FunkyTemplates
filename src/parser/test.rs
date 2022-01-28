@@ -25,9 +25,12 @@ fn test_function_parser() {
 
     assert_eq!(format!("{:?}", language_definition::FunctionParser::new()
         .parse("#main \n   x -> 5 + 4\n").unwrap()), "#main\nx -> (5 + 4)");
-
     assert_eq!(format!("{:?}", language_definition::FunctionParser::new()
         .parse("#main \nx -> 5 + 4 \n y -> 5-2\n").unwrap()), "#main\nx -> (5 + 4)\ny -> (5 - 2)");
+    assert_eq!(format!("{:?}", language_definition::FunctionParser::new()
+        .parse("#main \n {a, b} -> a + 4\n").unwrap()), "#main\n{a, b} -> (a + 4)");
+    assert_eq!(format!("{:?}", language_definition::FunctionParser::new()
+        .parse("#main \n {a, {c, true}} -> a + c\n").unwrap()), "#main\n{a, {c, true}} -> (a + c)");
 }
 
 #[test]
@@ -68,4 +71,20 @@ fn test_term_parser() {
         .parse("{5, 6, 7}").unwrap()), "{5, 6, 7}");
     assert_eq!(format!("{:?}", language_definition::ExprParser::new()
         .parse("{5, func(), 7}").unwrap()), "{5, func(), 7}");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("!true").unwrap()), "!(true)");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("!!true").unwrap()), "!(!(true))");
+    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
+        .parse("true && !true").unwrap()), "(true && !(true))");
+}
+
+#[test]
+fn test_template() {
+    assert_eq!(format!("{:?}", language_definition::TemplateParser::new()
+        .parse("#main\nx -> true\n").unwrap()), "#main\nx -> true");
+    assert_eq!(format!("{:?}", language_definition::TemplateParser::new()
+        .parse("#main\nx -> true \n #second\ny -> false\n").unwrap()), "#main\nx -> true\n#second\ny -> false");
+    assert_eq!(format!("{:?}", language_definition::TemplateParser::new()
+        .parse("#main\nx -> true \n\n\n #second\ny -> false\n").unwrap()), "#main\nx -> true\n#second\ny -> false");
 }

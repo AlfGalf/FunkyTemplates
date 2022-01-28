@@ -4,9 +4,12 @@
 
 ### Parser:
 
-- Patterns
-- Logic operators
-- Other number operators
+- Patterns DONE
+- Logic operators DONE
+- Other number operators ?
+- Full document
+- Multiline string
+- String substitutions
 
 ### Interpreter
 
