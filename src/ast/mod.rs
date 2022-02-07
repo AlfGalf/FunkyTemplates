@@ -1,7 +1,8 @@
-use std::fmt::{Debug, Error, Formatter, Pointer, write};
+use std::collections::HashMap;
+use std::fmt::{write, Debug, Error, Formatter, Pointer};
 
 pub struct Template {
-    pub functions: Vec<Function>,
+    pub functions: HashMap<String, Function>,
 }
 
 pub struct Function {
@@ -33,8 +34,8 @@ pub enum Expr {
     Tuple(Vec<Box<Expr>>),
     Str(String),
     InterpolationString(Vec<InterpolationPart>),
-    Lambda(Vec)
-Error,
+    Lambda(Vec<Box<Expr>>, Box<Expr>),
+    Error,
 }
 
 #[derive(Copy, Clone)]
@@ -92,6 +93,15 @@ impl Debug for Expr {
                     .map(|i| format!("{:?}", i))
                     .collect::<Vec<String>>()
                     .join(" + ")
+            ),
+            Lambda(ref p, ref v) => write!(
+                fmt,
+                "|{} => {:?}|",
+                p.iter()
+                    .map(|i| format!("{:?}", i))
+                    .collect::<Vec<String>>()
+                    .join(", "),
+                v
             ),
         }
     }

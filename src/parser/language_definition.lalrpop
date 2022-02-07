@@ -1,6 +1,7 @@
 // Adapted from LALRPOP book examples
 use std::str::FromStr;
 use crate::ast::*;
+use std::collections::HashMap;
 
 grammar();
 
@@ -22,8 +23,8 @@ pub Name: String = {
 
 // Full Template
 pub Template: Template = {
-    <mut t:Template> <f:Function> => {t.functions.push(f); t},
-    Function => Template { functions: vec![<>] }
+    <mut t:Template> <f:Function> => {t.functions.insert(f.name.clone(), f); t},
+    <f: Function> => Template { functions: HashMap::from([(f.name, f)]) }
 }
 
 // Function definitions
@@ -137,11 +138,11 @@ Term: Box<Expr> = {
     <n:Name> "(" <c: Comma<Expr>> ")" => Box::new(Expr::FuncCall(n, c)),
     Num => Box::new(Expr::Number(<>)),
     UnaryOp Term => Box::new(Expr::Unary(<>)),
-    "(" <Expr> ")",
+    "(" <Expr> ")" => <>,
     "{" <Comma<Expr>> "}" => Box::new(Expr::Tuple(<>)),
     StringTerm => Box::new(Expr::Str(<>)),
     StringInt => Box::new(Expr::InterpolationString(<>)),
-    "|" <Comma<Expr>> "=>" Expr "|" => Box::new(Expr::Number(1)),
+    "|" <Comma<Expr>> "=>" <Expr> "|" => Box::new(Expr::Lambda(<>)),
 };
 
 Num: i32 = {

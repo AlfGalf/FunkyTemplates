@@ -297,7 +297,18 @@ fn test_term_parser() {
         "stringInt(\"f\"Hello\" + a + \"hello\" + b + \"\"f\")"
     );
     assert_eq!(format!("{:?}", language_definition::ExprParser::new()
-        .parse("f\"Hello{f\"test {b} test\"f}hello{b}\"f").unwrap()), "stringInt(\"f\"Hello\" + stringInt(\"f\"test \" + b + \" test\"f\") + \"hello\" + b + \"\"f\")");
+        .parse("f\"Hello{f\"test {b} test\"f}hello{b}\"f").unwrap()),
+               "stringInt(\"f\"Hello\" + stringInt(\"f\"test \" + b + \" test\"f\") + \"hello\" + b + \"\"f\")"
+    );
+    assert_eq!(
+        format!(
+            "{:?}",
+            language_definition::ExprParser::new()
+                .parse("|a, b => c|")
+                .unwrap()
+        ),
+        "|a, b => c|"
+    );
 }
 
 #[test]
@@ -329,4 +340,35 @@ fn test_template() {
         ),
         "#main\nx -> true\n#second\ny -> false"
     );
+    {
+        let test_str = "\
+#main
+test -> 1;
+{a, b} -> 2;
+{a, (5 + 2 * 3)} -> 3;
+{a, true} -> 4;
+\"test\" -> 5;
+
+#second
+test2 -> 6;";
+        let res_str = "\
+#main
+test -> 1
+{a, b} -> 2
+{a, (5 + (2 * 3))} -> 3
+{a, true} -> 4
+\"test\" -> 5
+#second
+test2 -> 6";
+
+        assert_eq!(
+            format!(
+                "{:?}",
+                language_definition::TemplateParser::new()
+                    .parse(test_str)
+                    .unwrap()
+            ),
+            res_str
+        );
+    }
 }
