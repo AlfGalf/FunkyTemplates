@@ -326,7 +326,7 @@ fn test_template() {
         format!(
             "{:?}",
             language_definition::TemplateParser::new()
-                .parse("#main\n x -> true ;\n #second\n y -> false;\n")
+                .parse("#main\n x -> true;\n #second\n y -> false;\n")
                 .unwrap()
         ),
         "#main\nx -> true\n#second\ny -> false"

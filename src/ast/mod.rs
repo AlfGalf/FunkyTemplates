@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::{write, Debug, Error, Formatter, Pointer};
 
+use crate::ast::Expr::Tuple;
+
 pub struct Template {
     pub functions: HashMap<String, Function>,
 }
@@ -169,12 +171,13 @@ impl Debug for Function {
 
 impl Debug for Template {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
+        let funcs: Vec<&String> = self.functions.keys().into_iter().collect();
         write!(
             fmt,
             "{}",
-            self.functions
+            funcs
                 .iter()
-                .map(|f| format!("{:?}", f.1))
+                .map(|f| format!("{:?}", self.functions.get(*f).unwrap()))
                 .collect::<Vec<String>>()
                 .join("\n")
         )
