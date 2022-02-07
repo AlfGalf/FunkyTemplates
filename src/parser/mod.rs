@@ -2,8 +2,4 @@ use lalrpop_util;
 
 mod test;
 
-#[cfg(not(feature = "test"))]
-pub(crate) mod language_definition;
-
-#[cfg(feature = "test")]
-lalrpop_mod!(language_definition, "src/PARSER/language_definition.rs");
+lalrpop_mod!(pub language_definition, "/parser/language_definition.rs");

@@ -8,7 +8,7 @@ grammar();
 // Helpers
 Comma<T>: Vec<T> = {
     <mut v:(<T> ",")*> <e:T?> => match e {
-        None=> v,
+        None => v,
         Some(e) => {
             v.push(e);
             v
@@ -19,76 +19,77 @@ Comma<T>: Vec<T> = {
 // Shared
 pub Name: String = {
     <s:r"[A-Za-z][A-Za-z0-9_\-]*"> => s.to_string()
-}
+};
 
 // Full Template
 pub Template: Template = {
-    <mut t:Template> <f:Function> => {t.functions.insert(f.name.clone(), f); t},
-    <f: Function> => Template { functions: HashMap::from([(f.name.clone(), f)]) }
-}
+    <mut t:Template> <f:Function> => {t.env.insert(f.0, f.1); t},
+    <f: Function> => Template { env: HashMap::from([(f.0, f.1)]) }
+};
 
 // Function definitions
 pub FunctionNameString: String = {
     "#" <s:Name> => s
-}
+};
 
-pub Function: Function = {
-    <n: FunctionNameString> <p: Patterns> => Function { name: n, patterns: p },
-}
+pub Function: (String, Box<Expr>) = {
+    <n: FunctionNameString> <p: Patterns> => (n, Box::new(Expr::Function(p))),
+};
 
 Patterns: Vec<Pattern> = {
     <mut ps: Patterns> <p: Pattern> => { ps.push(p); ps },
     <p: Pattern> => vec![p],
-}
+};
 
 pub Pattern: Pattern = {
+    <e:Expr> ";" => Pattern {start: Box::new(Expr::Tuple(vec![])), result: e, guards: Vec::new()},
     <n:Expr> "->" <e:Expr> ";" => Pattern {start: n, result: e, guards: Vec::new()},
     <n:Expr> "->" <e:Expr> <g:Guards> ";" => Pattern {start: n, result: e, guards: g},
-}
+};
 
 Guards: Vec<Guard> = {
     <mut gs: Guards> <g: Guard> => { gs.push(g); gs },
     <g: Guard> => vec![g],
-}
+};
 
 pub Guard: Guard = {
     "|" <n:Expr>  => Guard {expr: n}
-}
+
+};
 
 // String terms
 
 pub StringTerm: String = {
-    <s: r#""[^"\n]*""#> => s[1..s.len()-1].to_string(),
-    <s: r#""""[^"]*""""#> => s[3..s.len()-3].to_string(),
-}
+    <s: r#""[^"]*""#> => s[1..s.len()-1].to_string()
+};
 
 StringInt: Vec<InterpolationPart> = {
-    <s: r#"f"([^\{\}\n]|\\\{|\\\})*"f"#> => vec![InterpolationPart::String(s[2..s.len()-2].to_string())],
-    <s1: r#"f"[^\{\}\n]*\{"#> <mut si: StringIntMid> <s2: r#"\}[^\{\}\n]*"f"#> => {
-        si.insert(0, InterpolationPart::String(s1[..s1.len()-1].to_string()));
-        si.push(InterpolationPart::String(s2[1..].to_string()));
+    <s: r#"f"([^\{\}]|\\\{|\\\})*"f"#> => vec![InterpolationPart::String(s[2..s.len()-2].to_string())],
+    <s1: r#"f"([^\{\}]|\\\{|\\\})*\{"#> <mut si: StringIntMid> <s2: r#"\}([^\{\}]|\\\{|\\\})*"f"#> => {
+        si.insert(0, InterpolationPart::String(s1[2..s1.len()-1].to_string()));
+        si.push(InterpolationPart::String(s2[1..s2.len()-2].to_string()));
         si
-    }
-}
+    },
+};
 
 StringIntMid: Vec<InterpolationPart> = {
     Expr => vec![InterpolationPart::Expr(<>)],
-    <mut si: StringIntMid> <s: r"\}[^\{\}\n]*\{"> <e: Expr> => {
+    <mut si: StringIntMid> <s: r"\}([^\{\}]|\\\{|\\\})*\{"> <e: Expr> => {
         si.push(InterpolationPart::String(s[1..s.len()-1].to_string()));
         si.push(InterpolationPart::Expr(e));
         si
     }
-}
+};
 
 // Operations
 pub Expr: Box<Expr> = {
     LogicExpr
-}
+};
 
 LogicExpr: Box<Expr> = {
     EqualityExpr LogicOp AddSubExpr => Box::new(Expr::Op(<>)),
     EqualityExpr,
-}
+};
 
 LogicOp: Opcode = {
     "&&" => Opcode::And,
@@ -98,7 +99,7 @@ LogicOp: Opcode = {
 EqualityExpr: Box<Expr> = {
     EqualityExpr EqualityOp AddSubExpr => Box::new(Expr::Op(<>)),
     AddSubExpr,
-}
+};
 
 EqualityOp: Opcode = {
     "==" => Opcode::Eq,
@@ -120,7 +121,7 @@ AddSubExprOp: Opcode = {
 
 Factor: Box<Expr> = {
     Factor FactorOp Term => Box::new(Expr::Op(<>)),
-    Term,
+    CallTerm,
 };
 
 FactorOp: Opcode = {
@@ -133,16 +134,25 @@ UnaryOp: UnaryOp = {
     "!" => UnaryOp::Not,
 };
 
+CallTerm: Box<Expr> = {
+    <e:CallTerm> "(" <c: Comma<Expr>> ")" => Box::new(Expr::FuncCall(e, c)),
+    <t:Term> => t,
+}
+
 Term: Box<Expr> = {
     <n:Name> => Box::new(Expr::Var(n)),
-    <n:Name> "(" <c: Comma<Expr>> ")" => Box::new(Expr::FuncCall(n, c)),
     Num => Box::new(Expr::Number(<>)),
     UnaryOp Term => Box::new(Expr::Unary(<>)),
-    "(" <Expr> ")" => <>,
-    "{" <Comma<Expr>> "}" => Box::new(Expr::Tuple(<>)),
+    "(" <v: Comma<Expr>> ")" => {
+        if v.len() == 1 {
+            Box::new(*v[0].clone())
+        } else {
+            Box::new(Expr::Tuple(<>))
+        }
+    },
     StringTerm => Box::new(Expr::Str(<>)),
     StringInt => Box::new(Expr::InterpolationString(<>)),
-    "|" <Comma<Expr>> "=>" <Expr> "|" => Box::new(Expr::Lambda(<>)),
+    "|" <s: Comma<Expr>> "=>" <e: Expr> "|" => Box::new(Expr::Function(vec![Pattern { start: Box::new(Expr::Tuple(s)), result: e, guards: vec![]}])),
 };
 
 Num: i32 = {
