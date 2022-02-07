@@ -32,7 +32,7 @@ pub FunctionNameString: String = {
 }
 
 pub Function: Function = {
-    <n: FunctionNameString> "\n" <p: Patterns> => Function { name: n, patterns: p },
+    <n: FunctionNameString> <p: Patterns> => Function { name: n, patterns: p },
 }
 
 Patterns: Vec<Pattern> = {
@@ -41,26 +41,45 @@ Patterns: Vec<Pattern> = {
 }
 
 pub Pattern: Pattern = {
-    <n:Expr> "->" <e:Expr> "\n" <g: Guards> => Pattern {start: n, result: e, guards: g},
-    <n:Expr> "->" <e:Expr> "\n" => Pattern {start: n, result: e, guards: Vec::new()},
+    <n:Expr> "->" <e:Expr> ";" => Pattern {start: n, result: e, guards: Vec::new()},
+    <n:Expr> "->" <e:Expr> <g:Guards> ";" => Pattern {start: n, result: e, guards: g},
 }
 
 Guards: Vec<Guard> = {
-    <mut gs: Guards> "\n" <g: Guard> => { gs.push(g); gs },
+    <mut gs: Guards> <g: Guard> => { gs.push(g); gs },
     <g: Guard> => vec![g],
 }
 
 pub Guard: Guard = {
-    "|" <n:Expr> "\n" => Guard {}
+    "|" <n:Expr>  => Guard {expr: n}
 }
 
 // String terms
+
 pub StringTerm: String = {
-    <s: r#""[^"\n]*""#> => s[1..s.len()-1].to_string()
+    <s: r#""[^"\n]*""#> => s[1..s.len()-1].to_string(),
+    <s: r#""""[^"]*""""#> => s[3..s.len()-3].to_string(),
+}
+
+StringInt: Vec<InterpolationPart> = {
+    <s: r#"f"([^\{\}\n]|\\\{|\\\})*"f"#> => vec![InterpolationPart::String(s[2..s.len()-2].to_string())],
+    <s1: r#"f"[^\{\}\n]*\{"#> <mut si: StringIntMid> <s2: r#"\}[^\{\}\n]*"f"#> => {
+        si.insert(0, InterpolationPart::String(s1[..s1.len()-1].to_string()));
+        si.push(InterpolationPart::String(s2[1..].to_string()));
+        si
+    }
+}
+
+StringIntMid: Vec<InterpolationPart> = {
+    Expr => vec![InterpolationPart::Expr(<>)],
+    <mut si: StringIntMid> <s: r"\}[^\{\}\n]*\{"> <e: Expr> => {
+        si.push(InterpolationPart::String(s[1..s.len()-1].to_string()));
+        si.push(InterpolationPart::Expr(e));
+        si
+    }
 }
 
 // Operations
-
 pub Expr: Box<Expr> = {
     LogicExpr
 }
@@ -120,6 +139,9 @@ Term: Box<Expr> = {
     UnaryOp Term => Box::new(Expr::Unary(<>)),
     "(" <Expr> ")",
     "{" <Comma<Expr>> "}" => Box::new(Expr::Tuple(<>)),
+    StringTerm => Box::new(Expr::Str(<>)),
+    StringInt => Box::new(Expr::InterpolationString(<>)),
+    "|" <Comma<Expr>> "=>" Expr "|" => Box::new(Expr::Number(1)),
 };
 
 Num: i32 = {
@@ -127,7 +149,7 @@ Num: i32 = {
 };
 
 match {
-    r"[ \t]*" => { }, // The default whitespace skipping is disabled an `ignore pattern` is specified
+    r"\s*" => { }, // The default whitespace skipping is disabled an `ignore pattern` is specified
     r"//[^\n\r]*[\n\r]*" => { }, // Skip `// comments`
     r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/" => { },  // Skip `/* comments */`
     _
