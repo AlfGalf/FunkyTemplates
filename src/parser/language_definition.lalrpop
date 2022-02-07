@@ -24,7 +24,7 @@ pub Name: String = {
 // Full Template
 pub Template: Template = {
     <mut t:Template> <f:Function> => {t.functions.insert(f.name.clone(), f); t},
-    <f: Function> => Template { functions: HashMap::from([(f.name, f)]) }
+    <f: Function> => Template { functions: HashMap::from([(f.name.clone(), f)]) }
 }
 
 // Function definitions

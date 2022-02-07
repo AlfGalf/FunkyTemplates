@@ -174,7 +174,7 @@ impl Debug for Template {
             "{}",
             self.functions
                 .iter()
-                .map(|f| format!("{:?}", f))
+                .map(|f| format!("{:?}", f.1))
                 .collect::<Vec<String>>()
                 .join("\n")
         )
