@@ -7,9 +7,10 @@
 - Patterns DONE
 - Logic operators DONE
 - Other number operators ?
-- Full document
-- Multiline string
-- String substitutions
+- Full document DONE
+- Multiline string DONE
+- String interpolation DONE
+- Multi line string interpolation
 
 ### Interpreter
 

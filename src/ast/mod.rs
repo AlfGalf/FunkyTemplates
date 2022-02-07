@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Error, Formatter};
+use std::fmt::{Debug, Error, Formatter, Pointer, write};
 
 pub struct Template {
     pub functions: Vec<Function>,
@@ -15,7 +15,14 @@ pub struct Pattern {
     pub guards: Vec<Guard>,
 }
 
-pub struct Guard {}
+pub struct Guard {
+    pub expr: Box<Expr>,
+}
+
+pub enum InterpolationPart {
+    String(String),
+    Expr(Box<Expr>),
+}
 
 pub enum Expr {
     Number(i32),
@@ -24,7 +31,10 @@ pub enum Expr {
     FuncCall(String, Vec<Box<Expr>>),
     Var(String),
     Tuple(Vec<Box<Expr>>),
-    Error,
+    Str(String),
+    InterpolationString(Vec<InterpolationPart>),
+    Lambda(Vec)
+Error,
 }
 
 #[derive(Copy, Clone)]
@@ -45,7 +55,7 @@ pub enum Opcode {
 
 #[derive(Copy, Clone)]
 pub enum UnaryOp {
-    Not
+    Not,
 }
 
 impl Debug for Expr {
@@ -53,12 +63,46 @@ impl Debug for Expr {
         use self::Expr::*;
         match *self {
             Var(ref s) => write!(fmt, "{}", s),
-            FuncCall(ref n, ref v) => write!(fmt, "{}({})", n, v.iter().map(|i| format!("{:?}", i)).collect::<Vec<String>>().join(", ")),
+            FuncCall(ref n, ref v) => write!(
+                fmt,
+                "{}({})",
+                n,
+                v.iter()
+                    .map(|i| format!("{:?}", i))
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
             Number(n) => write!(fmt, "{:?}", n),
             Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
-            Tuple(ref l) => write!(fmt, "{{{}}}", l.iter().map(|i| format!("{:?}", i)).collect::<Vec<String>>().join(", ")),
+            Tuple(ref l) => write!(
+                fmt,
+                "{{{}}}",
+                l.iter()
+                    .map(|i| format!("{:?}", i))
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
             Unary(o, ref t) => write!(fmt, "{:?}({:?})", o, t),
+            Str(ref s) => write!(fmt, "\"{}\"", s),
             Error => write!(fmt, "error"),
+            InterpolationString(ref s) => write!(
+                fmt,
+                "stringInt({})",
+                s.iter()
+                    .map(|i| format!("{:?}", i))
+                    .collect::<Vec<String>>()
+                    .join(" + ")
+            ),
+        }
+    }
+}
+
+impl Debug for InterpolationPart {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
+        use self::InterpolationPart::*;
+        match self {
+            String(s) => write!(fmt, "\"{}\"", s),
+            Expr(e) => write!(fmt, "{:?}", e),
         }
     }
 }
@@ -100,14 +144,29 @@ impl Debug for Pattern {
 
 impl Debug for Function {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
-        write!(fmt, "#{}\n{}", self.name, self.patterns.iter()
-            .map(|p| format!("{:?}", p)).collect::<Vec<String>>().join("\n"))
+        write!(
+            fmt,
+            "#{}\n{}",
+            self.name,
+            self.patterns
+                .iter()
+                .map(|p| format!("{:?}", p))
+                .collect::<Vec<String>>()
+                .join("\n")
+        )
     }
 }
 
 impl Debug for Template {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
-        write!(fmt, "{}", self.functions.iter()
-            .map(|f| format!("{:?}", f)).collect::<Vec<String>>().join("\n"))
+        write!(
+            fmt,
+            "{}",
+            self.functions
+                .iter()
+                .map(|f| format!("{:?}", f))
+                .collect::<Vec<String>>()
+                .join("\n")
+        )
     }
 }
