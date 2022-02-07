@@ -48,7 +48,7 @@ fn test_function_parser() {
                 .parse("#main \n    x -> 5 + 4;\n")
                 .unwrap()
         ),
-        "#main\nx -> (5 + 4)"
+        "(\"main\", |x -> (5 + 4)|)"
     );
     assert_eq!(
         format!(
@@ -57,25 +57,25 @@ fn test_function_parser() {
                 .parse("#main \n x -> 5 + 4 ;\n y -> 5-2;\n")
                 .unwrap()
         ),
-        "#main\nx -> (5 + 4)\ny -> (5 - 2)"
+        "(\"main\", |x -> (5 + 4)\ny -> (5 - 2)|)"
     );
     assert_eq!(
         format!(
             "{:?}",
             language_definition::FunctionParser::new()
-                .parse("#main \n {a, b} -> a + 4;\n")
+                .parse("#main \n (a, b) -> a + 4;\n")
                 .unwrap()
         ),
-        "#main\n{a, b} -> (a + 4)"
+        "(\"main\", |{a, b} -> (a + 4)|)"
     );
     assert_eq!(
         format!(
             "{:?}",
             language_definition::FunctionParser::new()
-                .parse("#main \n {a, {c, true}} -> a + c;\n")
+                .parse("#main \n (a, (c, true)) -> a + c;\n")
                 .unwrap()
         ),
-        "#main\n{a, {c, true}} -> (a + c)"
+        "(\"main\", |{a, {c, true}} -> (a + c)|)"
     );
 }
 
@@ -129,10 +129,10 @@ fn test_term_parser() {
         format!(
             "{:?}",
             language_definition::ExprParser::new()
-                .parse("func(1)")
+                .parse("func(1, 2)")
                 .unwrap()
         ),
-        "func(1)"
+        "func(1, 2)"
     );
     assert_eq!(
         format!(
@@ -210,7 +210,7 @@ fn test_term_parser() {
         format!(
             "{:?}",
             language_definition::ExprParser::new()
-                .parse("{5, 6, 7}")
+                .parse("(5, 6, 7)")
                 .unwrap()
         ),
         "{5, 6, 7}"
@@ -219,7 +219,7 @@ fn test_term_parser() {
         format!(
             "{:?}",
             language_definition::ExprParser::new()
-                .parse("{5, func(), 7}")
+                .parse("(5, func(), 7)")
                 .unwrap()
         ),
         "{5, func(), 7}"
@@ -264,7 +264,7 @@ fn test_term_parser() {
         format!(
             "{:?}",
             language_definition::ExprParser::new()
-                .parse("\"\"\"Hello\nhello\"\"\"")
+                .parse("\"Hello\nhello\"")
                 .unwrap()
         ),
         "\"Hello\nhello\""
@@ -285,7 +285,7 @@ fn test_term_parser() {
                 .parse("f\"Hello{a}hello\"f")
                 .unwrap()
         ),
-        "stringInt(\"f\"Hello\" + a + \"hello\"f\")"
+        "stringInt(\"Hello\" + a + \"hello\")"
     );
     assert_eq!(
         format!(
@@ -294,11 +294,16 @@ fn test_term_parser() {
                 .parse("f\"Hello{a}hello{b}\"f")
                 .unwrap()
         ),
-        "stringInt(\"f\"Hello\" + a + \"hello\" + b + \"\"f\")"
+        "stringInt(\"Hello\" + a + \"hello\" + b + \"\")"
     );
-    assert_eq!(format!("{:?}", language_definition::ExprParser::new()
-        .parse("f\"Hello{f\"test {b} test\"f}hello{b}\"f").unwrap()),
-               "stringInt(\"f\"Hello\" + stringInt(\"f\"test \" + b + \" test\"f\") + \"hello\" + b + \"\"f\")"
+    assert_eq!(
+        format!(
+            "{:?}",
+            language_definition::ExprParser::new()
+                .parse("f\"Hello{f\"test \n{b} test\"f}hello{b}\"f")
+                .unwrap()
+        ),
+        "stringInt(\"Hello\" + stringInt(\"test \n\" + b + \" test\") + \"hello\" + b + \"\")"
     );
     assert_eq!(
         format!(
@@ -307,7 +312,7 @@ fn test_term_parser() {
                 .parse("|a, b => c|")
                 .unwrap()
         ),
-        "|a, b => c|"
+        "|{a, b} -> c|"
     );
 }
 
@@ -320,7 +325,7 @@ fn test_template() {
                 .parse("#main\n  x -> true;\n")
                 .unwrap()
         ),
-        "#main\nx -> true"
+        "#main |x -> true|"
     );
     assert_eq!(
         format!(
@@ -329,7 +334,7 @@ fn test_template() {
                 .parse("#main\n x -> true;\n #second\n y -> false;\n")
                 .unwrap()
         ),
-        "#main\nx -> true\n#second\ny -> false"
+        "#main |x -> true|\n#second |y -> false|"
     );
     assert_eq!(
         format!(
@@ -338,28 +343,28 @@ fn test_template() {
                 .parse("#main\n x -> true ;\n\n\n #second\n y -> false;\n")
                 .unwrap()
         ),
-        "#main\nx -> true\n#second\ny -> false"
+        "#main |x -> true|\n#second |y -> false|"
     );
     {
         let test_str = "\
 #main
 test -> 1;
-{a, b} -> 2;
-{a, (5 + 2 * 3)} -> 3;
-{a, true} -> 4;
+(a, b) -> 2;
+(a, (5 + 2 * 3)) -> 3;
+(a, true) -> 4;
+(a, true) -> (test);
 \"test\" -> 5;
 
 #second
-test2 -> 6;";
+test -> 6;";
         let res_str = "\
-#main
-test -> 1
+#main |test -> 1
 {a, b} -> 2
 {a, (5 + (2 * 3))} -> 3
 {a, true} -> 4
-\"test\" -> 5
-#second
-test2 -> 6";
+{a, true} -> test
+\"test\" -> 5|
+#second |test -> 6|";
 
         assert_eq!(
             format!(

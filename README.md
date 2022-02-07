@@ -10,7 +10,7 @@
 - Full document DONE
 - Multiline string DONE
 - String interpolation DONE
-- Multi line string interpolation
+- Multi line string interpolation DONE
 - Lambdas DONE
 
 ### Interpreter

@@ -1,42 +1,39 @@
 use std::collections::HashMap;
 use std::fmt::{write, Debug, Error, Formatter, Pointer};
 
-use crate::ast::Expr::Tuple;
-
 pub struct Template {
-    pub functions: HashMap<String, Function>,
+    pub env: HashMap<String, Box<Expr>>,
 }
 
-pub struct Function {
-    pub name: String,
-    pub patterns: Vec<Pattern>,
-}
-
+#[derive(Clone)]
 pub struct Pattern {
     pub start: Box<Expr>,
     pub result: Box<Expr>,
     pub guards: Vec<Guard>,
 }
 
+#[derive(Clone)]
 pub struct Guard {
     pub expr: Box<Expr>,
 }
 
+#[derive(Clone)]
 pub enum InterpolationPart {
     String(String),
     Expr(Box<Expr>),
 }
 
+#[derive(Clone)]
 pub enum Expr {
     Number(i32),
     Op(Box<Expr>, Opcode, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
-    FuncCall(String, Vec<Box<Expr>>),
+    FuncCall(Box<Expr>, Vec<Box<Expr>>),
     Var(String),
     Tuple(Vec<Box<Expr>>),
     Str(String),
     InterpolationString(Vec<InterpolationPart>),
-    Lambda(Vec<Box<Expr>>, Box<Expr>),
+    Function(Vec<Pattern>),
     Error,
 }
 
@@ -68,7 +65,7 @@ impl Debug for Expr {
             Var(ref s) => write!(fmt, "{}", s),
             FuncCall(ref n, ref v) => write!(
                 fmt,
-                "{}({})",
+                "{:?}({})",
                 n,
                 v.iter()
                     .map(|i| format!("{:?}", i))
@@ -96,14 +93,13 @@ impl Debug for Expr {
                     .collect::<Vec<String>>()
                     .join(" + ")
             ),
-            Lambda(ref p, ref v) => write!(
+            Function(ref p) => write!(
                 fmt,
-                "|{} => {:?}|",
+                "|{}|",
                 p.iter()
                     .map(|i| format!("{:?}", i))
                     .collect::<Vec<String>>()
-                    .join(", "),
-                v
+                    .join("\n"),
             ),
         }
     }
@@ -154,30 +150,16 @@ impl Debug for Pattern {
     }
 }
 
-impl Debug for Function {
-    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
-        write!(
-            fmt,
-            "#{}\n{}",
-            self.name,
-            self.patterns
-                .iter()
-                .map(|p| format!("{:?}", p))
-                .collect::<Vec<String>>()
-                .join("\n")
-        )
-    }
-}
-
 impl Debug for Template {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
-        let funcs: Vec<&String> = self.functions.keys().into_iter().collect();
+        let mut funcs: Vec<&String> = self.env.keys().into_iter().collect();
+        funcs.sort();
         write!(
             fmt,
             "{}",
             funcs
                 .iter()
-                .map(|f| format!("{:?}", self.functions.get(*f).unwrap()))
+                .map(|f| format!("#{} {:?}", *f, self.env.get(*f).unwrap()))
                 .collect::<Vec<String>>()
                 .join("\n")
         )
