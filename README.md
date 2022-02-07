@@ -11,6 +11,7 @@
 - Multiline string DONE
 - String interpolation DONE
 - Multi line string interpolation
+- Lambdas DONE
 
 ### Interpreter
 
