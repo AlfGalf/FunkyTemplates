@@ -1,13 +1,13 @@
-use std::fmt::{write, Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
-use crate::ast::{Expr, Pattern};
+use crate::ast::Pattern;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ReturnVal {
     String(String),
     Int(i32),
     Bool(bool),
-    Tuple(Vec<Box<ReturnVal>>),
+    Tuple(Vec<ReturnVal>),
 }
 
 pub struct InterpretError {
@@ -29,11 +29,21 @@ pub enum InterpretVal {
     Function(Vec<Pattern>),
 }
 
+impl InterpretVal {
+    pub fn print(&self) -> String {
+        match self {
+            InterpretVal::Int(i) => i.to_string(),
+            _ => panic!("Type not found"),
+        }
+    }
+}
+
 impl Display for ReturnVal {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ReturnVal::Bool(b) => write!(fmt, "Bool({})", b),
             ReturnVal::Int(i) => write!(fmt, "Int({})", i),
+            ReturnVal::String(s) => write!(fmt, "String({})", s),
             _ => write!(fmt, "Unrecognised type"),
         }
     }

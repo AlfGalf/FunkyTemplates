@@ -1,7 +1,6 @@
-use crate::parser::language_definition;
-
 #[test]
 fn test_string_parsers() {
+    use crate::parser::language_definition;
     assert_eq!(
         language_definition::FunctionNameStringParser::new()
             .parse("#asASD_879")
@@ -31,6 +30,7 @@ fn test_string_parsers() {
 
 #[test]
 fn test_function_parser() {
+    use crate::parser::language_definition;
     assert_eq!(
         format!(
             "{:?}",
@@ -81,6 +81,7 @@ fn test_function_parser() {
 
 #[test]
 fn test_function_guards() {
+    use crate::parser::language_definition;
     assert_eq!(
         format!(
             "{:?}",
@@ -94,6 +95,7 @@ fn test_function_guards() {
 
 #[test]
 fn test_term_parser() {
+    use crate::parser::language_definition;
     assert_eq!(
         language_definition::NameParser::new()
             .parse("name")
@@ -318,6 +320,7 @@ fn test_term_parser() {
 
 #[test]
 fn test_template() {
+    use crate::parser::language_definition;
     assert_eq!(
         format!(
             "{:?}",
