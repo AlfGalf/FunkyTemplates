@@ -1,5 +1,8 @@
-use lalrpop_util;
-
 mod test;
 
-lalrpop_mod!(pub language_definition, "/parser/language_definition.rs");
+lalrpop_mod!(
+    #[allow(clippy::all)]
+    #[allow(unused)]
+    pub language_definition,
+    "/parser/language_definition.rs"
+);

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::fmt::{write, Debug, Error, Formatter, Pointer};
+use std::fmt::{Debug, Error, Formatter};
 
 pub struct Template {
-    pub env: HashMap<String, Box<Expr>>,
+    pub env: HashMap<String, Expr>,
 }
 
 #[derive(Clone)]
@@ -34,7 +34,6 @@ pub enum Expr {
     Str(String),
     InterpolationString(Vec<InterpolationPart>),
     Function(Vec<Pattern>),
-    Error,
 }
 
 #[derive(Copy, Clone)]
@@ -61,7 +60,7 @@ pub enum UnaryOp {
 impl Debug for Expr {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         use self::Expr::*;
-        match *self {
+        match self {
             Var(ref s) => write!(fmt, "{}", s),
             FuncCall(ref n, ref v) => write!(
                 fmt,
@@ -84,7 +83,6 @@ impl Debug for Expr {
             ),
             Unary(o, ref t) => write!(fmt, "{:?}({:?})", o, t),
             Str(ref s) => write!(fmt, "\"{}\"", s),
-            Error => write!(fmt, "error"),
             InterpolationString(ref s) => write!(
                 fmt,
                 "stringInt({})",
