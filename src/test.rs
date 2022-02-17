@@ -1,7 +1,6 @@
-use crate::Argument;
-
 #[test]
 fn test_string_parsers() {
+    use crate::Argument;
     use crate::{Language, ReturnVal};
     let lang_op = Language::from_text("#main t -> f\"Hello {t + 3}\"f;");
     assert!(lang_op.is_ok());

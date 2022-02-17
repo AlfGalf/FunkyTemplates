@@ -42,10 +42,6 @@ impl InterpretVal {
         }
     }
 
-    pub fn blank() -> Self {
-        InterpretVal::Tuple(vec![])
-    }
-
     pub fn unwrap_tuple(self) -> InterpretVal {
         if let InterpretVal::Tuple(s) = self {
             if s.len() == 1 {
@@ -60,7 +56,7 @@ impl InterpretVal {
 
     pub fn from_arg(arg: &Argument) -> Self {
         match arg {
-            Argument::Int(x) => InterpretVal::Int(x.clone()),
+            Argument::Int(x) => InterpretVal::Int(*x),
             Argument::String(s) => InterpretVal::String(s.clone()),
             _ => todo!(),
         }

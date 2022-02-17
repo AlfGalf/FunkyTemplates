@@ -25,6 +25,7 @@ pub enum InterpolationPart {
     Expr(Box<Expr>),
 }
 
+#[allow(clippy::vec_box)]
 #[derive(Clone, PartialEq)]
 pub enum Expr {
     Number(i32),
