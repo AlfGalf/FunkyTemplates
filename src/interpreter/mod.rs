@@ -126,7 +126,7 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
                 ))
             }
         }
-        Expr::Var(s) => env.find(s).clone(),
+        Expr::Var(s) => env.find(s),
         Expr::InterpolationString(vs) => Ok(InterpretVal::String(
             vs.iter()
                 .map(|p| match p {
@@ -149,9 +149,9 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
 }
 
 fn eval_op(
-    l: &Box<Expr>,
+    l: &Expr,
     op: &Opcode,
-    r: &Box<Expr>,
+    r: &Expr,
     env: &mut Frame,
 ) -> Result<InterpretVal, InterpretError> {
     let left = interpret_recurse(l, env)?;
@@ -278,16 +278,4 @@ fn interpret_function(
     }
 
     Err(InterpretError::new("Cannot find applicable pattern"))
-}
-
-fn unwrap_expr(e: Box<Expr>) -> Box<Expr> {
-    if let Expr::Tuple(s) = *e {
-        if s.len() == 1 {
-            s[0].clone()
-        } else {
-            Box::new(Expr::Tuple(s))
-        }
-    } else {
-        e
-    }
 }
