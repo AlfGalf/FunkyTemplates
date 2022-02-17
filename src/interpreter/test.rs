@@ -1,9 +1,13 @@
+use std::env::var;
+
+use crate::data_types::InterpretVal;
+
 #[test]
 fn test_interpret() {
     use crate::interpreter::interpret;
     use crate::TemplateParser;
     let temp = TemplateParser::new().parse("#main\n5;").unwrap();
-    let res = interpret(&temp, "main");
+    let res = interpret(&temp, "main", InterpretVal::blank());
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "Int(5)");
 }
@@ -13,7 +17,7 @@ fn test_lambda() {
     use crate::interpreter::interpret;
     use crate::TemplateParser;
     let temp = TemplateParser::new().parse("#main\n|x => 5|();").unwrap();
-    let res = interpret(&temp, "main");
+    let res = interpret(&temp, "main", InterpretVal::blank());
     // println!("{:?}", res);
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "Int(5)");
@@ -24,7 +28,7 @@ fn test_func() {
     use crate::interpreter::interpret;
     use crate::TemplateParser;
     let temp = TemplateParser::new().parse("#one 1;#main\none();").unwrap();
-    let res = interpret(&temp, "main");
+    let res = interpret(&temp, "main", InterpretVal::blank());
     println!("{:?}", res);
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "Int(1)");
@@ -37,7 +41,7 @@ fn test_interpolation() {
     let temp = TemplateParser::new()
         .parse("#main\nf\"test{2}test{5}\"f;")
         .unwrap();
-    let res = interpret(&temp, "main");
+    let res = interpret(&temp, "main", InterpretVal::blank());
     // println!("{:?}", res);
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "String(test2test5)");
@@ -50,7 +54,7 @@ fn test_ass_sub() {
     let temp = TemplateParser::new()
         .parse("#main\nf\"test{2+2} {4-3} {2--1}\"f + \"test\";")
         .unwrap();
-    let res = interpret(&temp, "main");
+    let res = interpret(&temp, "main", InterpretVal::blank());
     println!("{:?}", res);
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "String(test4 1 3test)");
@@ -61,9 +65,9 @@ fn test_mult_div() {
     use crate::interpreter::interpret;
     use crate::TemplateParser;
     let temp = TemplateParser::new()
-        .parse("#main\nf\"test{2*3} {10/3} {\"test\" * 2}\"f;")
+        .parse("#main\n f\"test{2*3} {10/3} {\"test\" * 2}\"f;")
         .unwrap();
-    let res = interpret(&temp, "main");
+    let res = interpret(&temp, "main", InterpretVal::blank());
     println!("{:?}", res);
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "String(test6 3 testtest)");
@@ -140,7 +144,7 @@ fn test_args() {
     let temp = TemplateParser::new()
         .parse("#one x -> x + 1;#main\none(2);")
         .unwrap();
-    let res = interpret(&temp, "main");
+    let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
     println!("{:?}", res);
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "Int(3)");
