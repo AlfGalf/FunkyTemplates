@@ -6,7 +6,7 @@ use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
 use crate::ast::Template;
-use crate::data_types::{InterpretError, ReturnVal};
+use crate::data_types::{InterpretError, InterpretVal, ReturnVal};
 use crate::interpreter::interpret;
 use crate::parser::language_definition::TemplateParser;
 
@@ -21,10 +21,17 @@ pub struct Language {
     temp: Rc<Template>,
 }
 
+pub enum Argument {
+    Int(i32),
+    String(String),
+    Tuple(Vec<Argument>),
+}
+
 /// Represents a function within a template
 pub struct LangFunc {
     lang: Rc<Template>,
     name: String,
+    arg: Option<Argument>,
 }
 
 impl Language {
@@ -46,13 +53,33 @@ impl Language {
         LangFunc {
             lang: Rc::clone(&self.temp),
             name: name.to_string(),
+            arg: None,
         }
     }
 }
 
 impl LangFunc {
+    pub fn arg(mut self, arg: Argument) -> Self {
+        self.arg = Some(arg);
+        self
+    }
+}
+
+impl LangFunc {
     pub fn call(&self) -> Result<ReturnVal, InterpretError> {
-        interpret(self.lang.as_ref(), self.name.as_str())
+        if let Some(x) = &self.arg {
+            interpret(
+                self.lang.as_ref(),
+                self.name.as_str(),
+                InterpretVal::from_arg(x),
+            )
+        } else {
+            interpret(
+                self.lang.as_ref(),
+                self.name.as_str(),
+                InterpretVal::Tuple(vec![]),
+            )
+        }
     }
 }
 

@@ -58,16 +58,16 @@ impl Frame {
     }
 }
 
-pub fn interpret(temp: &Template, name: &str) -> Result<ReturnVal, InterpretError> {
+pub fn interpret(
+    temp: &Template,
+    name: &str,
+    arg: InterpretVal,
+) -> Result<ReturnVal, InterpretError> {
     let res = {
         let frame = Frame::from_template(temp);
         if let Ok(func) = frame.find(name) {
             if let InterpretVal::Function(p) = func {
-                interpret_function(
-                    &p,
-                    &mut Frame::from_template(temp),
-                    InterpretVal::Tuple(vec![]),
-                )
+                interpret_function(&p, &mut Frame::from_template(temp), arg)
             } else {
                 panic!("Should be impossible to have top level expr with non function expr");
             }
