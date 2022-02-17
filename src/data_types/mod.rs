@@ -10,6 +10,7 @@ pub enum ReturnVal {
     Tuple(Vec<ReturnVal>),
 }
 
+#[derive(Clone)]
 pub struct InterpretError {
     message: String,
 }
@@ -22,18 +23,33 @@ impl InterpretError {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum InterpretVal {
     Int(i32),
     Bool(bool),
     String(String),
     Function(Vec<Pattern>),
+    Tuple(Vec<InterpretVal>),
 }
 
 impl InterpretVal {
     pub fn print(&self) -> String {
         match self {
             InterpretVal::Int(i) => i.to_string(),
+            InterpretVal::String(s) => s.to_string(),
             _ => panic!("Type not found"),
+        }
+    }
+
+    pub fn unwrap_tuple(self) -> InterpretVal {
+        if let InterpretVal::Tuple(s) = self {
+            if s.len() == 1 {
+                s[0].clone()
+            } else {
+                InterpretVal::Tuple(s)
+            }
+        } else {
+            self
         }
     }
 }

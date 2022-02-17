@@ -23,8 +23,8 @@ pub Name: String = {
 
 // Full Template
 pub Template: Template = {
-    <mut t:Template> <f:Function> => {t.env.insert(f.0, *f.1); t},
-    <f: Function> => Template { env: HashMap::from([(f.0, *f.1)]) }
+    <mut t:Template> <f:Function> => {t.env.insert(f.0, f.1); t},
+    <f: Function> => Template { env: HashMap::from([(f.0, f.1)]) }
 };
 
 // Function definitions
@@ -32,8 +32,8 @@ pub FunctionNameString: String = {
     "#" <s:Name> => s
 };
 
-pub Function: (String, Box<Expr>) = {
-    <n: FunctionNameString> <p: Patterns> => (n, Box::new(Expr::Function(p))),
+pub Function: (String, Vec<Pattern>) = {
+    <n: FunctionNameString> <p: Patterns> => (n, p),
 };
 
 Patterns: Vec<Pattern> = {
@@ -132,6 +132,7 @@ FactorOp: Opcode = {
 
 UnaryOp: UnaryOp = {
     "!" => UnaryOp::Not,
+    "-" => UnaryOp::Neg,
 };
 
 CallTerm: Box<Expr> = {

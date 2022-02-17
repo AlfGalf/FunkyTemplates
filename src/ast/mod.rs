@@ -1,29 +1,31 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter};
 
+use itertools::Itertools;
+
 pub struct Template {
-    pub env: HashMap<String, Expr>,
+    pub env: HashMap<String, Vec<Pattern>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Pattern {
     pub start: Box<Expr>,
     pub result: Box<Expr>,
     pub guards: Vec<Guard>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Guard {
     pub expr: Box<Expr>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum InterpolationPart {
     String(String),
     Expr(Box<Expr>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum Expr {
     Number(i32),
     Op(Box<Expr>, Opcode, Box<Expr>),
@@ -36,7 +38,21 @@ pub enum Expr {
     Function(Vec<Pattern>),
 }
 
-#[derive(Copy, Clone)]
+impl Expr {
+    pub fn unwrap_tuple(self) -> Self {
+        if let Expr::Tuple(s) = self {
+            if s.len() == 1 {
+                *s[0].clone()
+            } else {
+                Expr::Tuple(s)
+            }
+        } else {
+            self
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq)]
 pub enum Opcode {
     Mul,
     Div,
@@ -52,9 +68,10 @@ pub enum Opcode {
     Or,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum UnaryOp {
     Not,
+    Neg,
 }
 
 impl Debug for Expr {
@@ -138,6 +155,7 @@ impl Debug for UnaryOp {
         use self::UnaryOp::*;
         match *self {
             Not => write!(fmt, "!"),
+            Neg => write!(fmt, "-"),
         }
     }
 }
@@ -157,7 +175,16 @@ impl Debug for Template {
             "{}",
             funcs
                 .iter()
-                .map(|f| format!("#{} {:?}", *f, self.env.get(*f).unwrap()))
+                .map(|f| format!(
+                    "#{} {}",
+                    *f,
+                    self.env
+                        .get(*f)
+                        .unwrap()
+                        .iter()
+                        .map(|p| format!("{:?}", p))
+                        .join("\n")
+                ))
                 .collect::<Vec<String>>()
                 .join("\n")
         )

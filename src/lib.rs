@@ -16,16 +16,19 @@ mod interpreter;
 mod parser;
 mod test;
 
+/// Represents a set of template functions
 pub struct Language {
     temp: Rc<Template>,
 }
 
+/// Represents a function within a template
 pub struct LangFunc {
     lang: Rc<Template>,
     name: String,
 }
 
 impl Language {
+    /// Builds a language from a code string
     pub fn from_text(lang: &str) -> Result<Self, LanguageErr> {
         let parser: TemplateParser = TemplateParser::new();
         let res = parser.parse(lang);
@@ -38,6 +41,7 @@ impl Language {
         }
     }
 
+    /// Selects a function from the template
     pub fn function(&self, name: &str) -> LangFunc {
         LangFunc {
             lang: Rc::clone(&self.temp),

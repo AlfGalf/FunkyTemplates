@@ -48,7 +48,7 @@ fn test_function_parser() {
                 .parse("#main \n    x -> 5 + 4;\n")
                 .unwrap()
         ),
-        "(\"main\", |x -> (5 + 4)|)"
+        "(\"main\", [x -> (5 + 4)])"
     );
     assert_eq!(
         format!(
@@ -57,7 +57,7 @@ fn test_function_parser() {
                 .parse("#main \n x -> 5 + 4 ;\n y -> 5-2;\n")
                 .unwrap()
         ),
-        "(\"main\", |x -> (5 + 4)\ny -> (5 - 2)|)"
+        "(\"main\", [x -> (5 + 4), y -> (5 - 2)])"
     );
     assert_eq!(
         format!(
@@ -66,7 +66,7 @@ fn test_function_parser() {
                 .parse("#main \n (a, b) -> a + 4;\n")
                 .unwrap()
         ),
-        "(\"main\", |{a, b} -> (a + 4)|)"
+        "(\"main\", [{a, b} -> (a + 4)])"
     );
     assert_eq!(
         format!(
@@ -75,7 +75,7 @@ fn test_function_parser() {
                 .parse("#main \n (a, (c, true)) -> a + c;\n")
                 .unwrap()
         ),
-        "(\"main\", |{a, {c, true}} -> (a + c)|)"
+        "(\"main\", [{a, {c, true}} -> (a + c)])"
     );
 }
 
@@ -247,6 +247,13 @@ fn test_term_parser() {
     assert_eq!(
         format!(
             "{:?}",
+            language_definition::ExprParser::new().parse("-1").unwrap()
+        ),
+        "-(1)"
+    );
+    assert_eq!(
+        format!(
+            "{:?}",
             language_definition::ExprParser::new()
                 .parse("true && !true")
                 .unwrap()
@@ -328,7 +335,7 @@ fn test_template() {
                 .parse("#main\n  x -> true;\n")
                 .unwrap()
         ),
-        "#main |x -> true|"
+        "#main x -> true"
     );
     assert_eq!(
         format!(
@@ -337,7 +344,7 @@ fn test_template() {
                 .parse("#main\n x -> true;\n #second\n y -> false;\n")
                 .unwrap()
         ),
-        "#main |x -> true|\n#second |y -> false|"
+        "#main x -> true\n#second y -> false"
     );
     assert_eq!(
         format!(
@@ -346,7 +353,7 @@ fn test_template() {
                 .parse("#main\n x -> true ;\n\n\n #second\n y -> false;\n")
                 .unwrap()
         ),
-        "#main |x -> true|\n#second |y -> false|"
+        "#main x -> true\n#second y -> false"
     );
     {
         let test_str = "\
@@ -361,13 +368,13 @@ test -> 1;
 #second
 test -> 6;";
         let res_str = "\
-#main |test -> 1
+#main test -> 1
 {a, b} -> 2
 {a, (5 + (2 * 3))} -> 3
 {a, true} -> 4
 {a, true} -> test
-\"test\" -> 5|
-#second |test -> 6|";
+\"test\" -> 5
+#second test -> 6";
 
         assert_eq!(
             format!(
