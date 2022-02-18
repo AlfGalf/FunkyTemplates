@@ -153,3 +153,81 @@ fn test_args() {
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "Int(3)");
 }
+
+#[test]
+fn test_pattern_match_func() {
+    use crate::interpreter::interpret;
+    use crate::TemplateParser;
+
+    let temp = TemplateParser::new()
+        .parse("#main (x, 1) -> x - 1; (x, y) -> x + y;x -> x + 1; ")
+        .unwrap();
+    let res = interpret(&temp, "main", InterpretVal::Int(1));
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "Int(2)");
+
+    let res = interpret(
+        &temp,
+        "main",
+        InterpretVal::Tuple(vec![InterpretVal::Int(4), InterpretVal::Int(1)]),
+    );
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "Int(3)");
+
+    let res = interpret(
+        &temp,
+        "main",
+        InterpretVal::Tuple(vec![InterpretVal::Int(4), InterpretVal::Int(2)]),
+    );
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "Int(6)");
+}
+
+#[test]
+fn test_eq() {
+    use crate::interpreter::interpret;
+    use crate::TemplateParser;
+
+    let temp = TemplateParser::new()
+        .parse("#one x -> x == 1;#main\none(1);")
+        .unwrap();
+    let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+    // println!("{:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "Bool(true)");
+
+    let temp = TemplateParser::new()
+        .parse("#one x -> x == (1, 2); #main\none(1, 2);")
+        .unwrap();
+    let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+    // println!("{:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "Bool(true)");
+
+    let temp = TemplateParser::new()
+        .parse("#one x -> x == (1, 2); #main\none(1, 3);")
+        .unwrap();
+    let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+    // println!("{:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "Bool(false)");
+}
+
+#[test]
+fn test_guards() {
+    use crate::interpreter::interpret;
+    use crate::TemplateParser;
+
+    let temp = TemplateParser::new()
+        .parse("#main\nx -> 2|x==3;y -> 5;")
+        .unwrap();
+    let res = interpret(&temp, "main", InterpretVal::Int(2));
+    // println!("{:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "Int(5)");
+
+    let res = interpret(&temp, "main", InterpretVal::Int(3));
+    // println!("{:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "Int(2)");
+}

@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
+use itertools::Itertools;
+
 use crate::ast::Pattern;
 use crate::Argument;
 
@@ -59,6 +61,25 @@ impl InterpretVal {
             Argument::Int(x) => InterpretVal::Int(*x),
             Argument::String(s) => InterpretVal::String(s.clone()),
             _ => todo!(),
+        }
+    }
+
+    pub fn eq(&self, other: &Self) -> Result<bool, InterpretError> {
+        match (self.clone().unwrap_tuple(), other.clone().unwrap_tuple()) {
+            (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l == r),
+            (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(l == r),
+            (InterpretVal::String(l), InterpretVal::String(r)) => Ok(l == r),
+            (InterpretVal::Tuple(l), InterpretVal::Tuple(r)) => Ok(l.len() == r.len()
+                && l.into_iter()
+                    .zip(r)
+                    .map(|(l, r)| l.eq(&r))
+                    .fold_ok(true, |l, r| l && r)?),
+            (InterpretVal::Function(_), InterpretVal::Function(_)) => {
+                Err(InterpretError::new("Cannot compare functions."))
+            }
+            (l, r) => Err(InterpretError::new(
+                format!("Non matching types for equality: {:?} == {:?}", l, r).as_str(),
+            )),
         }
     }
 }

@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -48,12 +49,18 @@ impl Frame {
     }
 
     fn find(&self, name: &str) -> Result<InterpretVal, InterpretError> {
-        if let Some(r) = self.frame.get(name) {
-            Ok(r.clone())
-        } else if let Some(n) = &self.next {
-            n.borrow().find(name)
-        } else {
-            Err(InterpretError::new("Cannot find value."))
+        match name {
+            "true" => Ok(InterpretVal::Bool(true)),
+            "false" => Ok(InterpretVal::Bool(false)),
+            _ => {
+                if let Some(r) = self.frame.get(name) {
+                    Ok(r.clone())
+                } else if let Some(n) = &self.next {
+                    n.borrow().find(name)
+                } else {
+                    Err(InterpretError::new("Cannot find value."))
+                }
+            }
         }
     }
 }
@@ -205,6 +212,13 @@ fn eval_op(
                 format!("Invalid operators for division: {:?} * {:?}", l, r).as_str(),
             )),
         },
+        Opcode::Mod => match (left, right) {
+            (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l % r)),
+            (l, r) => Err(InterpretError::new(
+                format!("Invalid operators for modulo: {:?} % {:?}", l, r).as_str(),
+            )),
+        },
+        Opcode::Eq => Ok(InterpretVal::Bool(left.eq(&right)?)),
         _ => todo!("Other op types"),
     }
 }
@@ -273,7 +287,16 @@ fn interpret_function(
 ) -> Result<InterpretVal, InterpretError> {
     for p in func {
         if let Some(mut r) = pattern_match(p.start.clone(), arg.clone(), env)? {
-            return interpret_recurse(&*p.result, &mut r);
+            if p.guards
+                .iter()
+                .map(|p| {
+                    let res = interpret_recurse(p.expr.borrow(), &mut r)?;
+                    Ok(res == InterpretVal::Bool(true))
+                })
+                .fold_ok(true, |l, r| l && r)?
+            {
+                return interpret_recurse(&*p.result, &mut r);
+            }
         }
     }
 
