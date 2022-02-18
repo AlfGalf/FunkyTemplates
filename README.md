@@ -17,10 +17,16 @@
 
 - [x] Basic arithmetic and string building DONE
 - [x] Basic function calling and frames
-- [x] Arguments and pattern matching
+- [x] Arguments
+- [X] String interpolation
+    - [ ] Escape sequences
+- [X] Pattern matching
+    - [X] TEST
 - [ ] Lists
-- [ ] Guards
-- [ ] Booleans
+- [x] Guards
+    - [ ] TEST
+- [x] Booleans
+    - [X] TEST
 - [ ] Token hashtable?
 - [ ] Better errors (`@L @R`)
 - [ ] Builtin function
@@ -36,8 +42,7 @@
 - [x] Look into API design patterns in Rust
 - [x] Define API
 - [ ] API for AST printing?
-    - [ ] Good for demo of progress
-- [ ] Adding arguments
-- [ ] Flesh out return types
-- [ ] Adding extra builtin functions
+- [x] Adding arguments
+- [x] Flesh out return types
+- [ ] Adding extra builtin functions and operators
 
