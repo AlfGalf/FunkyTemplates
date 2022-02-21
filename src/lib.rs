@@ -11,7 +11,7 @@ use crate::interpreter::interpret;
 use crate::parser::language_definition::TemplateParser;
 
 mod ast;
-mod data_types
+mod data_types;
 mod interpreter;
 mod parser;
 mod test;
