@@ -85,7 +85,7 @@ fn test_pattern_match() {
     use std::collections::HashMap;
     assert_eq!(
         pattern_match(
-            Box::new(Expr::Var("x".to_string())),
+            Expr::var(0, "x".to_string(), 0),
             InterpretVal::Int(5),
             &mut Frame::new(),
         )
@@ -100,10 +100,14 @@ fn test_pattern_match() {
     );
 
     assert!(pattern_match(
-        Box::new(Expr::Tuple(vec![
-            Box::new(Expr::Var("x".to_string())),
-            Box::new(Expr::Var("y".to_string())),
-        ])),
+        Expr::tuple(
+            0,
+            vec![
+                Expr::var(0, "x".to_string(), 0),
+                Expr::var(0, "y".to_string(), 0),
+            ],
+            0,
+        ),
         InterpretVal::Int(5),
         &mut Frame::new(),
     )
@@ -112,10 +116,11 @@ fn test_pattern_match() {
 
     assert_eq!(
         pattern_match(
-            Box::new(Expr::Tuple(vec![
-                Box::new(Expr::Number(5)),
-                Box::new(Expr::Var("y".to_string())),
-            ])),
+            Expr::tuple(
+                0,
+                vec![Expr::number(0, 5, 0), Expr::var(0, "y".to_string(), 0)],
+                0,
+            ),
             InterpretVal::Tuple(vec![InterpretVal::Int(5), InterpretVal::Int(4)]),
             &mut Frame::new(),
         )
@@ -130,10 +135,14 @@ fn test_pattern_match() {
     );
 
     assert!(pattern_match(
-        Box::new(Expr::Tuple(vec![
-            Box::new(Expr::Var("x".to_string())),
-            Box::new(Expr::Var("x".to_string())),
-        ])),
+        Expr::tuple(
+            0,
+            vec![
+                Expr::var(0, "x".to_string(), 0),
+                Expr::var(0, "x".to_string(), 0),
+            ],
+            0,
+        ),
         InterpretVal::Tuple(vec![InterpretVal::Int(5), InterpretVal::Int(6)]),
         &mut Frame::new(),
     )
@@ -230,4 +239,26 @@ fn test_guards() {
     // println!("{:?}", res);
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "Int(2)");
+}
+
+#[test]
+fn test_escapes() {
+    use crate::interpreter::interpret;
+    use crate::TemplateParser;
+
+    let temp = TemplateParser::new()
+        .parse("#main\n\"\\{\\}\\\\\";")
+        .unwrap();
+    let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+    // println!("{:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "String({}\\)");
+
+    let temp = TemplateParser::new()
+        .parse("#main\nx -> f\"\\{\\} {x} \\\\\"f;")
+        .unwrap();
+    let res = interpret(&temp, "main", InterpretVal::Int(5));
+    // println!("{:?}", res);
+    assert!(res.is_ok());
+    assert_eq!(format!("{}", res.ok().unwrap()), "String({} 5 \\)");
 }

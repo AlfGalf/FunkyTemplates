@@ -134,7 +134,7 @@ fn test_term_parser() {
                 .parse("func(1, 2)")
                 .unwrap()
         ),
-        "func(1, 2)"
+        "func({1, 2})"
     );
     assert_eq!(
         format!(
@@ -143,7 +143,7 @@ fn test_term_parser() {
                 .parse("func()")
                 .unwrap()
         ),
-        "func()"
+        "func({})"
     );
     assert_eq!(
         format!(
@@ -161,7 +161,7 @@ fn test_term_parser() {
                 .parse("func(1, 2 + 3)")
                 .unwrap()
         ),
-        "func(1, (2 + 3))"
+        "func({1, (2 + 3)})"
     );
     assert_eq!(
         format!(
@@ -171,6 +171,15 @@ fn test_term_parser() {
                 .unwrap()
         ),
         "((2 + 3) == 5)"
+    );
+    assert_eq!(
+        format!(
+            "{:?}",
+            language_definition::ExprParser::new()
+                .parse("2 + 3 != 5")
+                .unwrap()
+        ),
+        "((2 + 3) != 5)"
     );
     assert_eq!(
         format!(
@@ -224,7 +233,7 @@ fn test_term_parser() {
                 .parse("(5, func(), 7)")
                 .unwrap()
         ),
-        "{5, func(), 7}"
+        "{5, func({}), 7}"
     );
     assert_eq!(
         format!(
@@ -313,6 +322,15 @@ fn test_term_parser() {
                 .unwrap()
         ),
         "stringInt(\"Hello\" + stringInt(\"test \n\" + b + \" test\") + \"hello\" + b + \"\")"
+    );
+    assert_eq!(
+        format!(
+            "{:?}",
+            language_definition::ExprParser::new()
+                .parse("f\"\\{\\} {x} \"f")
+                .unwrap()
+        ),
+        "stringInt(\"\\{\\} \" + x + \" \")"
     );
     assert_eq!(
         format!(

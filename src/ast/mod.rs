@@ -9,46 +9,101 @@ pub struct Template {
 
 #[derive(Clone, PartialEq)]
 pub struct Pattern {
-    pub start: Box<Expr>,
-    pub result: Box<Expr>,
+    pub start: Expr,
+    pub result: Expr,
     pub guards: Vec<Guard>,
 }
 
 #[derive(Clone, PartialEq)]
 pub struct Guard {
-    pub expr: Box<Expr>,
+    pub expr: Expr,
 }
 
 #[derive(Clone, PartialEq)]
 pub enum InterpolationPart {
     String(String),
-    Expr(Box<Expr>),
+    Expr(Expr),
 }
 
-#[allow(clippy::vec_box)]
 #[derive(Clone, PartialEq)]
-pub enum Expr {
+pub enum ExprInner {
     Number(i32),
     Op(Box<Expr>, Opcode, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
-    FuncCall(Box<Expr>, Vec<Box<Expr>>),
+    FuncCall(Box<Expr>, Box<Expr>),
     Var(String),
-    Tuple(Vec<Box<Expr>>),
+    Tuple(Vec<Expr>),
     Str(String),
     InterpolationString(Vec<InterpolationPart>),
     Function(Vec<Pattern>),
 }
 
+#[derive(Clone, PartialEq)]
+pub struct Expr {
+    pub val: ExprInner,
+    pub start: usize,
+    pub end: usize,
+}
+
 impl Expr {
+    fn new(start: usize, val: ExprInner, end: usize) -> Self {
+        Self { val, start, end }
+    }
+
+    pub fn number(start: usize, v: i32, end: usize) -> Self {
+        Self::new(start, ExprInner::Number(v), end)
+    }
+
+    pub fn op(start: usize, v1: Expr, v2: Opcode, v3: Expr, end: usize) -> Self {
+        Self::new(start, ExprInner::Op(Box::new(v1), v2, Box::new(v3)), end)
+    }
+
+    pub fn unary(start: usize, v1: UnaryOp, v2: Expr, end: usize) -> Self {
+        Self::new(start, ExprInner::Unary(v1, Box::new(v2)), end)
+    }
+
+    pub fn func_call(start: usize, v1: Expr, v2: Expr, end: usize) -> Self {
+        Self::new(start, ExprInner::FuncCall(Box::new(v1), Box::new(v2)), end)
+    }
+
+    pub fn var(start: usize, v1: String, end: usize) -> Self {
+        Self::new(start, ExprInner::Var(v1), end)
+    }
+
+    pub fn tuple(start: usize, v1: Vec<Expr>, end: usize) -> Self {
+        Self::new(start, ExprInner::Tuple(v1), end)
+    }
+
+    pub fn string(start: usize, v1: String, end: usize) -> Self {
+        Self::new(start, ExprInner::Str(v1), end)
+    }
+
+    pub fn interpolation_string(start: usize, v1: Vec<InterpolationPart>, end: usize) -> Self {
+        Self::new(start, ExprInner::InterpolationString(v1), end)
+    }
+
+    pub fn function(start: usize, v1: Vec<Pattern>, end: usize) -> Self {
+        Self::new(start, ExprInner::Function(v1), end)
+    }
+
     pub fn unwrap_tuple(self) -> Self {
-        if let Expr::Tuple(s) = self {
-            if s.len() == 1 {
-                *s[0].clone()
-            } else {
-                Expr::Tuple(s)
+        match self {
+            Expr {
+                val: ExprInner::Tuple(s),
+                start: l,
+                end: r,
+            } => {
+                if s.len() == 1 {
+                    s.get(0).unwrap().clone()
+                } else {
+                    Expr {
+                        val: ExprInner::Tuple(s),
+                        start: l,
+                        end: r,
+                    }
+                }
             }
-        } else {
-            self
+            _ => self,
         }
     }
 }
@@ -67,6 +122,7 @@ pub enum Opcode {
     Gt,
     And,
     Or,
+    Neq,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -77,21 +133,12 @@ pub enum UnaryOp {
 
 impl Debug for Expr {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
-        use self::Expr::*;
-        match self {
-            Var(ref s) => write!(fmt, "{}", s),
-            FuncCall(ref n, ref v) => write!(
-                fmt,
-                "{:?}({})",
-                n,
-                v.iter()
-                    .map(|i| format!("{:?}", i))
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            ),
-            Number(n) => write!(fmt, "{:?}", n),
-            Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
-            Tuple(ref l) => write!(
+        match self.val {
+            ExprInner::Var(ref s) => write!(fmt, "{}", s),
+            ExprInner::FuncCall(ref n, ref v) => write!(fmt, "{:?}({:?})", n, v),
+            ExprInner::Number(n) => write!(fmt, "{:?}", n),
+            ExprInner::Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
+            ExprInner::Tuple(ref l) => write!(
                 fmt,
                 "{{{}}}",
                 l.iter()
@@ -99,9 +146,9 @@ impl Debug for Expr {
                     .collect::<Vec<String>>()
                     .join(", ")
             ),
-            Unary(o, ref t) => write!(fmt, "{:?}({:?})", o, t),
-            Str(ref s) => write!(fmt, "\"{}\"", s),
-            InterpolationString(ref s) => write!(
+            ExprInner::Unary(o, ref t) => write!(fmt, "{:?}({:?})", o, t),
+            ExprInner::Str(ref s) => write!(fmt, "\"{}\"", s),
+            ExprInner::InterpolationString(ref s) => write!(
                 fmt,
                 "stringInt({})",
                 s.iter()
@@ -109,7 +156,7 @@ impl Debug for Expr {
                     .collect::<Vec<String>>()
                     .join(" + ")
             ),
-            Function(ref p) => write!(
+            ExprInner::Function(ref p) => write!(
                 fmt,
                 "|{}|",
                 p.iter()
@@ -141,6 +188,7 @@ impl Debug for Opcode {
             Add => write!(fmt, "+"),
             Sub => write!(fmt, "-"),
             Eq => write!(fmt, "=="),
+            Neq => write!(fmt, "!="),
             Leq => write!(fmt, "<="),
             Lt => write!(fmt, "<"),
             Geq => write!(fmt, ">="),

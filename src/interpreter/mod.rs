@@ -8,7 +8,9 @@ use itertools::Itertools;
 
 use crate::ast::*;
 use crate::data_types::*;
+use crate::interpreter::string_escapes::process_string;
 
+mod string_escapes;
 mod test;
 
 /// Frame for holding the environment in an execution of a program
@@ -96,12 +98,13 @@ pub fn interpret(
 }
 
 fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, InterpretError> {
-    match expr {
-        Expr::Str(s) => Ok(InterpretVal::String(s.clone())),
-        Expr::Number(n) => Ok(InterpretVal::Int(*n)),
-        Expr::Unary(o, e) => match o {
+    use crate::ast::ExprInner::*;
+    match &expr.val {
+        Str(s) => Ok(InterpretVal::String(process_string(s)?)),
+        Number(n) => Ok(InterpretVal::Int(*n)),
+        Unary(o, e) => match o {
             UnaryOp::Not => {
-                let res = interpret_recurse(e, env)?;
+                let res = interpret_recurse(&*e, env)?;
                 if let InterpretVal::Bool(e) = res {
                     Ok(InterpretVal::Bool(!e))
                 } else {
@@ -111,7 +114,7 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
                 }
             }
             UnaryOp::Neg => {
-                let res = interpret_recurse(e, env)?;
+                let res = interpret_recurse(&*e, env)?;
                 if let InterpretVal::Int(i) = res {
                     Ok(InterpretVal::Int(-i))
                 } else {
@@ -121,10 +124,11 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
                 }
             }
         },
-        Expr::Function(p) => Ok(InterpretVal::Function(p.clone())),
-        Expr::FuncCall(f, a) => {
+        Function(p) => Ok(InterpretVal::Function(p.clone())),
+        FuncCall(f, a) => {
             let val = interpret_recurse(f, env)?;
-            let arg = interpret_recurse(&Expr::Tuple(a.clone()), env)?;
+            let arg = interpret_recurse(a, env)?;
+
             if let InterpretVal::Function(p) = val {
                 interpret_function(&p, env, arg)
             } else {
@@ -133,24 +137,20 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
                 ))
             }
         }
-        Expr::Var(s) => env.find(s),
-        Expr::InterpolationString(vs) => Ok(InterpretVal::String(
+        Var(s) => env.find(s),
+        InterpolationString(vs) => Ok(InterpretVal::String(
             vs.iter()
                 .map(|p| match p {
-                    InterpolationPart::String(s) => Ok(s.to_string()),
+                    InterpolationPart::String(s) => Ok(process_string(s)?),
                     InterpolationPart::Expr(e) => Ok(interpret_recurse(e, env)?.print()),
                 })
                 .fold_ok(String::new(), |s, p| s.add(p.as_str()))?,
         )),
-        Expr::Op(l, o, r) => eval_op(l, o, r, env),
-        Expr::Tuple(v) => Ok(InterpretVal::Tuple(
+        Op(l, o, r) => eval_op(&*l, o, &*r, env),
+        Tuple(v) => Ok(InterpretVal::Tuple(
             v.iter()
                 .map(|e| interpret_recurse(e, env))
                 .collect::<Result<Vec<InterpretVal>, InterpretError>>()?,
-        )),
-
-        e => Err(InterpretError::new(
-            format!("Unrecognised node type {:?}.", e).as_str(),
         )),
     }
 }
@@ -165,101 +165,54 @@ fn eval_op(
     let right = interpret_recurse(r, env)?;
 
     match op {
-        Opcode::Add => match left {
-            InterpretVal::String(s) => {
-                if let InterpretVal::String(r) = right {
-                    Ok(InterpretVal::String(s.add(r.as_str())))
-                } else {
-                    Err(InterpretError::new("Cannot add non string to sting."))
-                }
-            }
-            InterpretVal::Int(i) => {
-                if let InterpretVal::Int(r) = right {
-                    Ok(InterpretVal::Int(i + r))
-                } else {
-                    Err(InterpretError::new("Cannot add non int to int."))
-                }
-            }
-            t => Err(InterpretError::new(
-                format!("Add operator not defined for {:?}.", t).as_str(),
-            )),
-        },
-        Opcode::Sub => {
-            if let (InterpretVal::Int(l), InterpretVal::Int(r)) = (left, right) {
-                Ok(InterpretVal::Int(l - r))
-            } else {
-                Err(InterpretError::new("Cannot subtract non string."))
-            }
-        }
-        Opcode::Mul => match (left, right) {
-            (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l * r)),
-            (InterpretVal::String(l), InterpretVal::Int(r)) => {
-                if r >= 0 {
-                    Ok(InterpretVal::String(l.repeat(r as usize)))
-                } else {
-                    Err(InterpretError::new(
-                        "Cannot repeat a string a negative number of times",
-                    ))
-                }
-            }
-            (l, r) => Err(InterpretError::new(
-                format!("Invalid operators for multiplication: {:?} * {:?}", l, r).as_str(),
-            )),
-        },
-        Opcode::Div => match (left, right) {
-            (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l / r)),
-            (l, r) => Err(InterpretError::new(
-                format!("Invalid operators for division: {:?} * {:?}", l, r).as_str(),
-            )),
-        },
-        Opcode::Mod => match (left, right) {
-            (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l % r)),
-            (l, r) => Err(InterpretError::new(
-                format!("Invalid operators for modulo: {:?} % {:?}", l, r).as_str(),
-            )),
-        },
-        Opcode::Eq => Ok(InterpretVal::Bool(left.eq(&right)?)),
-        _ => todo!("Other op types"),
+        Opcode::Add => left.add_op(&right),
+        Opcode::Sub => left.sub_op(&right),
+        Opcode::Mul => left.mult_op(&right),
+        Opcode::Div => left.div_op(&right),
+        Opcode::Mod => left.modulo_op(&right),
+        Opcode::Eq => left.eq_op(&right),
+        Opcode::Neq => left.neq_op(&right),
+        Opcode::Lt => left.lt_op(&right),
+        Opcode::Gt => left.gt_op(&right),
+        Opcode::Leq => left.leq_op(&right),
+        Opcode::Geq => left.geq_op(&right),
+        Opcode::And => left.and_op(&right),
+        Opcode::Or => left.or_op(&right),
     }
 }
 
 fn pattern_match(
-    param: Box<Expr>,
+    param: Expr,
     arg: InterpretVal,
     env: &mut Frame,
 ) -> Result<Option<Frame>, InterpretError> {
     let mut res = Frame::new();
 
-    let mut stack = vec![(param, arg.unwrap_tuple())];
-    //     if let InterpretVal::Tuple(s) = arg {
-    //         if s.len() == 1 {
-    //             vec![(&param, s.first().unwrap().clone())]
-    //         } else {
-    //             vec![(&param, InterpretVal::Tuple(s))]
-    //         }
-    //     } else {
-    //         vec![(&param, arg)]
-    //     }
-    // };
+    let mut stack = vec![(param.unwrap_tuple(), arg.unwrap_tuple())];
 
     while !stack.is_empty() {
+        use crate::ast::ExprInner::*;
         let (cur_param, cur_arg) = {
             let (p1, c1) = stack.pop().unwrap();
             (p1.clone().unwrap_tuple(), c1.unwrap_tuple())
         };
 
         match cur_param {
-            Expr::Var(s) => {
+            Expr {
+                val: Var(s),
+                start: _,
+                end: _,
+            } => {
                 res.add_val(s.clone(), &cur_arg)?;
             }
-            Expr::Tuple(s) => {
+            Expr {
+                val: Tuple(s),
+                start: _,
+                end: _,
+            } => {
                 if let InterpretVal::Tuple(v) = cur_arg {
                     if s.len() == v.len() {
-                        for (p, a) in s
-                            .into_iter()
-                            .zip(v)
-                            .collect::<Vec<(Box<Expr>, InterpretVal)>>()
-                        {
+                        for (p, a) in s.into_iter().zip(v).collect::<Vec<(Expr, InterpretVal)>>() {
                             stack.push((p, a).clone())
                         }
                     }
@@ -295,7 +248,7 @@ fn interpret_function(
                 })
                 .fold_ok(true, |l, r| l && r)?
             {
-                return interpret_recurse(&*p.result, &mut r);
+                return interpret_recurse(&p.result, &mut r);
             }
         }
     }

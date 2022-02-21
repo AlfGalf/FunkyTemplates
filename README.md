@@ -19,16 +19,19 @@
 - [x] Basic function calling and frames
 - [x] Arguments
 - [X] String interpolation
-    - [ ] Escape sequences
+    - [X] Escape sequences
 - [X] Pattern matching
     - [X] TEST
 - [ ] Lists
 - [x] Guards
-    - [ ] TEST
+    - [X] TEST
 - [x] Booleans
     - [X] TEST
 - [ ] Token hashtable?
 - [ ] Better errors (`@L @R`)
+    - [X] Add location data to ast
+    - [ ] Use AST to make errors
+- [ ] Underscores
 - [ ] Builtin function
     - [ ] List
     - [ ] Map
