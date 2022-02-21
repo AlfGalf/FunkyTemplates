@@ -42,7 +42,7 @@ Patterns: Vec<Pattern> = {
 };
 
 pub Pattern: Pattern = {
-    <e:Expr> ";" => Pattern {start: Box::new(Expr::Tuple(vec![])), result: e, guards: Vec::new()},
+    <e:Expr> ";" => Pattern {start: Expr::tuple(0, vec![], 0), result: e, guards: Vec::new()},
     <n:Expr> "->" <e:Expr> ";" => Pattern {start: n, result: e, guards: Vec::new()},
     <n:Expr> "->" <e:Expr> <g:Guards> ";" => Pattern {start: n, result: e, guards: g},
 };
@@ -64,8 +64,8 @@ pub StringTerm: String = {
 };
 
 StringInt: Vec<InterpolationPart> = {
-    <s: r#"f"([^\{\}]|\\\{|\\\})*"f"#> => vec![InterpolationPart::String(s[2..s.len()-2].to_string())],
-    <s1: r#"f"([^\{\}]|\\\{|\\\})*\{"#> <mut si: StringIntMid> <s2: r#"\}([^\{\}]|\\\{|\\\})*"f"#> => {
+    <s: r#"f"([^\{\}\\]|\\\{|\\\}|\\\\)*"f"#> => vec![InterpolationPart::String(s[2..s.len()-2].to_string())],
+    <s1: r#"f"([^\{\}\\]|\\\{|\\\}|\\\\)*\{"#> <mut si: StringIntMid> <s2: r#"\}([^\{\}\\]|\\\{|\\\}|\\\\)*"f"#> => {
         si.insert(0, InterpolationPart::String(s1[2..s1.len()-1].to_string()));
         si.push(InterpolationPart::String(s2[1..s2.len()-2].to_string()));
         si
@@ -74,7 +74,7 @@ StringInt: Vec<InterpolationPart> = {
 
 StringIntMid: Vec<InterpolationPart> = {
     Expr => vec![InterpolationPart::Expr(<>)],
-    <mut si: StringIntMid> <s: r"\}([^\{\}]|\\\{|\\\})*\{"> <e: Expr> => {
+    <mut si: StringIntMid> <s: r"\}([^\{\}\\]|\\\{|\\\}|\\\\)*\{"> <e: Expr> => {
         si.push(InterpolationPart::String(s[1..s.len()-1].to_string()));
         si.push(InterpolationPart::Expr(e));
         si
@@ -82,12 +82,12 @@ StringIntMid: Vec<InterpolationPart> = {
 };
 
 // Operations
-pub Expr: Box<Expr> = {
+pub Expr: Expr = {
     LogicExpr
 };
 
-LogicExpr: Box<Expr> = {
-    EqualityExpr LogicOp AddSubExpr => Box::new(Expr::Op(<>)),
+LogicExpr: Expr = {
+    @L EqualityExpr LogicOp AddSubExpr @R => Expr::op(<>),
     EqualityExpr,
 };
 
@@ -96,21 +96,22 @@ LogicOp: Opcode = {
     "||" => Opcode::Or,
 };
 
-EqualityExpr: Box<Expr> = {
-    EqualityExpr EqualityOp AddSubExpr => Box::new(Expr::Op(<>)),
+EqualityExpr: Expr = {
+    @L EqualityExpr EqualityOp AddSubExpr @R => Expr::op(<>),
     AddSubExpr,
 };
 
 EqualityOp: Opcode = {
     "==" => Opcode::Eq,
+    "!=" => Opcode::Neq,
     "<=" => Opcode::Leq,
     ">=" => Opcode::Geq,
     "<" => Opcode::Lt,
     ">" => Opcode::Gt,
 };
 
-AddSubExpr: Box<Expr> = {
-    AddSubExpr AddSubExprOp Factor => Box::new(Expr::Op(<>)),
+AddSubExpr: Expr = {
+    @L AddSubExpr AddSubExprOp Factor @R => Expr::op(<>),
     Factor,
 };
 
@@ -119,8 +120,8 @@ AddSubExprOp: Opcode = {
     "-" => Opcode::Sub,
 };
 
-Factor: Box<Expr> = {
-    Factor FactorOp Term => Box::new(Expr::Op(<>)),
+Factor: Expr = {
+    @L Factor FactorOp Term @R => Expr::op(<>),
     CallTerm,
 };
 
@@ -135,25 +136,25 @@ UnaryOp: UnaryOp = {
     "-" => UnaryOp::Neg,
 };
 
-CallTerm: Box<Expr> = {
-    <e:CallTerm> "(" <c: Comma<Expr>> ")" => Box::new(Expr::FuncCall(e, c)),
+CallTerm: Expr = {
+    <l: @L> <e:CallTerm> "(" <l1:@L> <c: Comma<Expr>> <r1:@R> ")" <r:@R> => Expr::func_call(l, e, Expr::tuple(l1, c, r1), r),
     <t:Term> => t,
 }
 
-Term: Box<Expr> = {
-    <n:Name> => Box::new(Expr::Var(n)),
-    Num => Box::new(Expr::Number(<>)),
-    UnaryOp Term => Box::new(Expr::Unary(<>)),
-    "(" <v: Comma<Expr>> ")" => {
+Term: Expr = {
+    @L Name @R => Expr::var(<>),
+    @L Num @R => Expr::number(<>),
+    @L UnaryOp Term @R => Expr::unary(<>),
+    <l:@L> "(" <v: Comma<Expr>> ")" <r:@R> => {
         if v.len() == 1 {
-            Box::new(*v[0].clone())
+            v[0].clone()
         } else {
-            Box::new(Expr::Tuple(<>))
+            Expr::tuple(<>)
         }
     },
-    StringTerm => Box::new(Expr::Str(<>)),
-    StringInt => Box::new(Expr::InterpolationString(<>)),
-    "|" <s: Comma<Expr>> "=>" <e: Expr> "|" => Box::new(Expr::Function(vec![Pattern { start: Box::new(Expr::Tuple(s)), result: e, guards: vec![]}])),
+    @L StringTerm @R => Expr::string(<>),
+    @L StringInt @R => Expr::interpolation_string(<>),
+    <l:@L> "|" <l1:@L> <s: Comma<Expr>> <r1:@L> "=>" <e: Expr> "|" <r:@R> => Expr::function(l, vec![Pattern { start: Expr::tuple(l1, s, r1), result: e, guards: vec![]}], r),
 };
 
 Num: i32 = {

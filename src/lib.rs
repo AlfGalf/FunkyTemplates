@@ -11,7 +11,7 @@ use crate::interpreter::interpret;
 use crate::parser::language_definition::TemplateParser;
 
 mod ast;
-mod data_types;
+mod data_types
 mod interpreter;
 mod parser;
 mod test;
@@ -41,8 +41,8 @@ impl Language {
         let res = parser.parse(lang);
         match res {
             Ok(l) => Ok(Self { temp: Rc::new(l) }),
-            Err(e) => {
-                println!("{}", e);
+            Err(_) => {
+                // println!("{}", e);
                 Err(LanguageErr {})
             }
         }
