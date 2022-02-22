@@ -8,8 +8,11 @@ use itertools::Itertools;
 
 use crate::ast::*;
 use crate::data_types::*;
+use crate::interpreter::builtins::built_in;
 use crate::interpreter::string_escapes::process_string;
+use crate::ReturnVal;
 
+mod builtins;
 mod string_escapes;
 mod test;
 
@@ -126,15 +129,18 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
         },
         Function(p) => Ok(InterpretVal::Function(p.clone())),
         FuncCall(f, a) => {
-            let val = interpret_recurse(f, env)?;
             let arg = interpret_recurse(a, env)?;
+            if let ExprInner::Var(n) = f.val.clone() {
+                if let Some(v) = built_in(n, arg.clone()) {
+                    return v;
+                }
+            }
+            let val = interpret_recurse(f, env)?;
 
             if let InterpretVal::Function(p) = val {
                 interpret_function(&p, env, arg)
             } else {
-                Err(InterpretError::new(
-                    "Called something that was not a function",
-                ))
+                Err(InterpretError::new("Called value that is not a function."))
             }
         }
         Var(s) => env.find(s),
@@ -153,6 +159,10 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
                 .collect::<Result<Vec<InterpretVal>, InterpretError>>()?,
         )),
     }
+    .map_err(|mut e| {
+        e.add_loc(expr.start, expr.end);
+        e
+    })
 }
 
 fn eval_op(
@@ -253,5 +263,5 @@ fn interpret_function(
         }
     }
 
-    Err(InterpretError::new("Cannot find applicable pattern"))
+    Err(InterpretError::new("Cannot find applicable pattern."))
 }

@@ -262,3 +262,18 @@ fn test_escapes() {
     assert!(res.is_ok());
     assert_eq!(format!("{}", res.ok().unwrap()), "String({} 5 \\)");
 }
+
+#[test]
+fn test_error() {
+    use crate::interpreter::interpret;
+    use crate::TemplateParser;
+
+    let temp = TemplateParser::new().parse("#main\n 5 + \"hi\";").unwrap();
+    let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+    // println!("{:?}", res);
+    assert!(res.is_err());
+    assert_eq!(
+        format!("{:?}", res.err().unwrap()),
+        "Interpret Error: \"Add operator not defined for Int(5) + String(\"hi\").\" loc: 7 - 15"
+    );
+}

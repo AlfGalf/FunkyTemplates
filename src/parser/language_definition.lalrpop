@@ -64,8 +64,8 @@ pub StringTerm: String = {
 };
 
 StringInt: Vec<InterpolationPart> = {
-    <s: r#"f"([^\{\}\\]|\\\{|\\\}|\\\\)*"f"#> => vec![InterpolationPart::String(s[2..s.len()-2].to_string())],
-    <s1: r#"f"([^\{\}\\]|\\\{|\\\}|\\\\)*\{"#> <mut si: StringIntMid> <s2: r#"\}([^\{\}\\]|\\\{|\\\}|\\\\)*"f"#> => {
+    <s: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> => vec![InterpolationPart::String(s[2..s.len()-2].to_string())],
+    <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <mut si: StringIntMid> <s2: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> => {
         si.insert(0, InterpolationPart::String(s1[2..s1.len()-1].to_string()));
         si.push(InterpolationPart::String(s2[1..s2.len()-2].to_string()));
         si
@@ -74,7 +74,7 @@ StringInt: Vec<InterpolationPart> = {
 
 StringIntMid: Vec<InterpolationPart> = {
     Expr => vec![InterpolationPart::Expr(<>)],
-    <mut si: StringIntMid> <s: r"\}([^\{\}\\]|\\\{|\\\}|\\\\)*\{"> <e: Expr> => {
+    <mut si: StringIntMid> <s: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <e: Expr> => {
         si.push(InterpolationPart::String(s[1..s.len()-1].to_string()));
         si.push(InterpolationPart::Expr(e));
         si
