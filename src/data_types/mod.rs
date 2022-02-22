@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Formatter};
 use std::ops::Add;
 
 use itertools::Itertools;
@@ -6,23 +6,22 @@ use itertools::Itertools;
 use crate::ast::Pattern;
 use crate::Argument;
 
-#[derive(Debug, PartialEq)]
-pub enum ReturnVal {
-    String(String),
-    Int(i32),
-    Bool(bool),
-    Tuple(Vec<ReturnVal>),
-}
-
 #[derive(Clone)]
 pub struct InterpretError {
-    message: String,
+    pub message: String,
+    pub location: Option<(usize, usize)>,
 }
 
 impl InterpretError {
     pub fn new(name: &str) -> Self {
         Self {
             message: name.to_string(),
+            location: None,
+        }
+    }
+    pub fn add_loc(&mut self, start: usize, end: usize) {
+        if self.location.is_none() {
+            self.location = Some((start, end));
         }
     }
 }
@@ -65,7 +64,9 @@ impl InterpretVal {
         match arg {
             Argument::Int(x) => InterpretVal::Int(*x),
             Argument::String(s) => InterpretVal::String(s.clone()),
-            _ => todo!(),
+            Argument::Tuple(v) => {
+                InterpretVal::Tuple(v.iter().map(InterpretVal::from_arg).collect())
+            }
         }
     }
 
@@ -207,19 +208,16 @@ impl InterpretVal {
     }
 }
 
-impl Display for ReturnVal {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ReturnVal::Bool(b) => write!(fmt, "Bool({})", b),
-            ReturnVal::Int(i) => write!(fmt, "Int({})", i),
-            ReturnVal::String(s) => write!(fmt, "String({})", s),
-            _ => write!(fmt, "Unrecognised type"),
-        }
-    }
-}
-
 impl Debug for InterpretError {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(fmt, "Interpret Error: {}", self.message)
+        if let Some((s, e)) = self.location {
+            write!(
+                fmt,
+                "Interpret Error: \"{}\" loc: {} - {}",
+                self.message, s, e
+            )
+        } else {
+            write!(fmt, "Interpret Error: {}", self.message)
+        }
     }
 }

@@ -28,9 +28,9 @@
 - [x] Booleans
     - [X] TEST
 - [ ] Token hashtable?
-- [ ] Better errors (`@L @R`)
+- [X] Better errors (`@L @R`)
     - [X] Add location data to ast
-    - [ ] Use AST to make errors
+    - [X] Use AST to make errors
 - [ ] Underscores
 - [ ] Builtin function
     - [ ] List
