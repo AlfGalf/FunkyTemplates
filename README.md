@@ -19,26 +19,31 @@
 - [x] Basic function calling and frames
 - [x] Arguments
 - [X] String interpolation
-    - [X] Escape sequences
+  - [X] Escape sequences
 - [X] Pattern matching
-    - [X] TEST
-- [ ] Lists
+  - [X] TEST
+- [X] Lists
 - [x] Guards
-    - [X] TEST
+  - [X] TEST
 - [x] Booleans
-    - [X] TEST
+  - [X] TEST
 - [ ] Token hashtable?
 - [X] Better errors (`@L @R`)
-    - [X] Add location data to ast
-    - [X] Use AST to make errors
-- [ ] Underscores
-- [ ] Builtin function
-    - [ ] List
-    - [ ] Map
-    - [ ] Filter
-    - [ ] Any
-    - [ ] All
-    - [ ] Fold
+  - [X] Add location data to ast
+  - [X] Use AST to make errors
+- [X] Underscores
+- [ ] Closures
+- [X] Builtin function
+  - [X] List
+    - [X] TEST
+  - [X] Get
+    - [X] TEST
+  - [X] Map
+  - [X] Filter
+  - [X] Any
+  - [X] All
+  - [ ] Fold
+  - [X] Length
 
 ### API:
 

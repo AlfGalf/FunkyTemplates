@@ -54,7 +54,6 @@ Guards: Vec<Guard> = {
 
 pub Guard: Guard = {
     "|" <n:Expr>  => Guard {expr: n}
-
 };
 
 // String terms
@@ -142,6 +141,7 @@ CallTerm: Expr = {
 }
 
 Term: Expr = {
+    <l: @L> <m:"_"> <r:@R> => Expr::var(l, "_".to_string(), r),
     @L Name @R => Expr::var(<>),
     @L Num @R => Expr::number(<>),
     @L UnaryOp Term @R => Expr::unary(<>),
