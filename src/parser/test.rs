@@ -1,3 +1,4 @@
+// Test to check strings parse correctly
 #[test]
 fn test_string_parsers() {
   use crate::parser::language_definition;
@@ -28,6 +29,7 @@ fn test_string_parsers() {
     .is_err());
 }
 
+// Test to check functions parse correctly
 #[test]
 fn test_function_parser() {
   use crate::parser::language_definition;
@@ -79,6 +81,7 @@ fn test_function_parser() {
   );
 }
 
+// Test to check guards parse correctly
 #[test]
 fn test_function_guards() {
   use crate::parser::language_definition;
@@ -93,6 +96,7 @@ fn test_function_guards() {
   );
 }
 
+// Test to check all types of term parse correctly
 #[test]
 fn test_term_parser() {
   use crate::parser::language_definition;
@@ -343,6 +347,7 @@ fn test_term_parser() {
   );
 }
 
+// Test to check entire templates parse correctly
 #[test]
 fn test_template() {
   use crate::parser::language_definition;

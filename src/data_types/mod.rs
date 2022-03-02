@@ -1,10 +1,13 @@
+use std::cell::RefCell;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::ops::Add;
 
 use itertools::Itertools;
 
 use crate::ast::Pattern;
-use crate::Argument;
+use crate::{Argument, Template};
 
 #[derive(Clone)]
 pub struct InterpretError {
@@ -34,6 +37,7 @@ pub enum InterpretVal {
   Function(Vec<Pattern>),
   Tuple(Vec<InterpretVal>),
   List(Vec<InterpretVal>),
+  Lambda(Pattern, Frame),
 }
 
 impl InterpretVal {
@@ -221,5 +225,66 @@ impl Debug for InterpretError {
     } else {
       write!(fmt, "Interpret Error: {}", self.message)
     }
+  }
+}
+
+/// Frame for holding the environment in an execution of a program
+#[derive(Debug, Clone, PartialEq)]
+pub struct Frame {
+  pub(crate) frame: HashMap<String, InterpretVal>,
+  next: Option<RefCell<Box<Frame>>>,
+}
+
+impl Frame {
+  pub fn new() -> Self {
+    Self {
+      frame: HashMap::new(),
+      next: None,
+    }
+  }
+
+  pub fn from_template(t: &Template) -> Self {
+    Self {
+      frame: t
+        .env
+        .iter()
+        .map(|(a, b)| (a.clone(), InterpretVal::Function(b.clone())))
+        .collect(),
+      next: None,
+    }
+  }
+
+  pub fn add_val(&mut self, name: String, expr: &InterpretVal) -> Result<(), InterpretError> {
+    if let Entry::Vacant(e) = self.frame.entry(name) {
+      e.insert(expr.clone());
+      Ok(())
+    } else {
+      Err(InterpretError::new(
+        "Multiple variables within the same frame.",
+      ))
+    }
+  }
+
+  pub fn find(&self, name: &str) -> Result<InterpretVal, InterpretError> {
+    match name {
+      "true" => Ok(InterpretVal::Bool(true)),
+      "false" => Ok(InterpretVal::Bool(false)),
+      _ => {
+        if let Some(r) = self.frame.get(name) {
+          Ok(r.clone())
+        } else if let Some(n) = &self.next {
+          n.borrow().find(name)
+        } else {
+          Err(InterpretError::new(&*format!(
+            "Cannot find value {}.",
+            name
+          )))
+        }
+      }
+    }
+  }
+
+  pub fn set_next(&mut self, next: &Frame) {
+    self.next = Some(RefCell::new(Box::new(next.clone())))
   }
 }

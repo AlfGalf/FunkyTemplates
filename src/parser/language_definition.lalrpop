@@ -154,7 +154,7 @@ Term: Expr = {
     },
     @L StringTerm @R => Expr::string(<>),
     @L StringInt @R => Expr::interpolation_string(<>),
-    <l:@L> "|" <l1:@L> <s: Comma<Expr>> <r1:@L> "=>" <e: Expr> "|" <r:@R> => Expr::function(l, vec![Pattern { start: Expr::tuple(l1, s, r1), result: e, guards: vec![]}], r),
+    <l:@L> "|" <l1:@L> <s: Comma<Expr>> <r1:@L> "=>" <e: Expr> "|" <r:@R> => Expr::lambda(l, Pattern { start: Expr::tuple(l1, s, r1), result: e, guards: vec![]}, r),
 };
 
 Num: i32 = {

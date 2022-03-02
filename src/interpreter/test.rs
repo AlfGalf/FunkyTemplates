@@ -1,11 +1,13 @@
 #[cfg(test)]
 use crate::InterpretVal;
 
+// Creates a empty tuple, helper function for tests
 #[cfg(test)]
 fn blank() -> InterpretVal {
   InterpretVal::Tuple(vec![])
 }
 
+// Tests the interpreter works at all
 #[test]
 fn test_interpret() {
   use crate::interpreter::interpret;
@@ -16,6 +18,7 @@ fn test_interpret() {
   assert_eq!(format!("{}", res.ok().unwrap()), "Int(5)");
 }
 
+// Tests lambda funcitons
 #[test]
 fn test_lambda() {
   use crate::interpreter::interpret;
@@ -27,6 +30,7 @@ fn test_lambda() {
   assert_eq!(format!("{}", res.ok().unwrap()), "Int(5)");
 }
 
+// Tests functions work
 #[test]
 fn test_func() {
   use crate::interpreter::interpret;
@@ -38,6 +42,7 @@ fn test_func() {
   assert_eq!(format!("{}", res.ok().unwrap()), "Int(1)");
 }
 
+// Tests string interpolation
 #[test]
 fn test_interpolation() {
   use crate::interpreter::interpret;
@@ -51,8 +56,9 @@ fn test_interpolation() {
   assert_eq!(format!("{}", res.ok().unwrap()), "String(test2test5)");
 }
 
+// Tests the addition and subtraction operators
 #[test]
-fn test_ass_sub() {
+fn test_add_sub() {
   use crate::interpreter::interpret;
   use crate::TemplateParser;
   let temp = TemplateParser::new()
@@ -64,6 +70,7 @@ fn test_ass_sub() {
   assert_eq!(format!("{}", res.ok().unwrap()), "String(test4 1 3test)");
 }
 
+// Tests the multiply and divide operators
 #[test]
 fn test_mult_div() {
   use crate::interpreter::interpret;
@@ -77,6 +84,7 @@ fn test_mult_div() {
   assert_eq!(format!("{}", res.ok().unwrap()), "String(test6 3 testtest)");
 }
 
+// Tests pattern matching code specifically
 #[test]
 fn test_pattern_match() {
   use crate::ast::*;
@@ -149,6 +157,7 @@ fn test_pattern_match() {
   .is_err())
 }
 
+// Tests arguments being passed into functions
 #[test]
 fn test_args() {
   use crate::interpreter::interpret;
@@ -163,6 +172,7 @@ fn test_args() {
   assert_eq!(format!("{}", res.ok().unwrap()), "Int(3)");
 }
 
+// Tests teh pattern match functionality
 #[test]
 fn test_pattern_match_func() {
   use crate::interpreter::interpret;
@@ -192,6 +202,7 @@ fn test_pattern_match_func() {
   assert_eq!(format!("{}", res.ok().unwrap()), "Int(6)");
 }
 
+// Tests teh equality operator
 #[test]
 fn test_eq() {
   use crate::interpreter::interpret;
@@ -222,6 +233,7 @@ fn test_eq() {
   assert_eq!(format!("{}", res.ok().unwrap()), "Bool(false)");
 }
 
+// Tests pattern guards
 #[test]
 fn test_guards() {
   use crate::interpreter::interpret;
@@ -241,6 +253,7 @@ fn test_guards() {
   assert_eq!(format!("{}", res.ok().unwrap()), "Int(2)");
 }
 
+// Tests string escape sequences
 #[test]
 fn test_escapes() {
   use crate::interpreter::interpret;
@@ -263,6 +276,7 @@ fn test_escapes() {
   assert_eq!(format!("{}", res.ok().unwrap()), "String({} 5 \\)");
 }
 
+// Tests that errors capture location successfully and the error is correct
 #[test]
 fn test_error() {
   use crate::interpreter::interpret;
@@ -278,6 +292,7 @@ fn test_error() {
   );
 }
 
+// Tests that builtin functions work at all and further that the list funciton works
 #[test]
 fn test_builtin() {
   use crate::interpreter::interpret;
@@ -309,8 +324,9 @@ fn test_builtin() {
   );
 }
 
+// Tests the builtin map function
 #[test]
-fn test_list() {
+fn test_map() {
   use crate::interpreter::interpret;
   use crate::TemplateParser;
 
@@ -334,6 +350,7 @@ fn test_list() {
   );
 }
 
+// Tests teh builtin filter function
 #[test]
 fn test_filter() {
   use crate::interpreter::interpret;
@@ -364,6 +381,7 @@ fn test_filter() {
   );
 }
 
+// Tests the builtin len funciton
 #[test]
 fn test_length() {
   use crate::interpreter::interpret;
@@ -389,6 +407,7 @@ fn test_length() {
   assert_eq!(format!("{}", res.unwrap()), "Int(8)");
 }
 
+// Tests the builtin any function
 #[test]
 fn test_any() {
   use crate::interpreter::interpret;
@@ -433,6 +452,7 @@ fn test_any() {
   assert_eq!(format!("{}", res.unwrap()), "Bool(false)");
 }
 
+// Tests the builtin all function
 #[test]
 fn test_all() {
   use crate::interpreter::interpret;
@@ -460,7 +480,7 @@ fn test_all() {
   assert_eq!(format!("{}", res.unwrap()), "Bool(false)");
 
   let temp = TemplateParser::new()
-    .parse("#main\n x -> any(x, |i => i % 3 == 0|);")
+    .parse("#main\n x -> all(x, |i => i % 3 == 0|);")
     .unwrap();
   let res = interpret(
     &temp,
@@ -475,4 +495,47 @@ fn test_all() {
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{}", res.unwrap()), "Bool(true)");
+}
+
+// Tests the builtin fold function
+#[test]
+fn test_fold() {
+  use crate::interpreter::interpret;
+  use crate::TemplateParser;
+
+  let temp = TemplateParser::new()
+    .parse("#main\n x -> fold(x, 0, |a, i => a + i|);")
+    .unwrap();
+  let res = interpret(
+    &temp,
+    "main",
+    InterpretVal::List(vec![
+      InterpretVal::Int(3),
+      InterpretVal::Int(4),
+      InterpretVal::Int(5),
+      InterpretVal::Int(6),
+      InterpretVal::Int(12),
+      InterpretVal::Int(13),
+      InterpretVal::Int(1236),
+      InterpretVal::Int(1237),
+    ]),
+  );
+  // println!("{:?}", res);
+  assert!(res.is_ok());
+  assert_eq!(format!("{}", res.unwrap()), "Int(2516)");
+}
+
+// Tests closures and environment capture
+#[test]
+fn test_closure() {
+  use crate::interpreter::interpret;
+  use crate::TemplateParser;
+
+  let temp = TemplateParser::new()
+    .parse("#closure y -> |a => a + y|; #main\n x -> closure(3)(x);")
+    .unwrap();
+  let res = interpret(&temp, "main", InterpretVal::Int(5));
+  println!("{:?}", res);
+  assert!(res.is_ok());
+  assert_eq!(format!("{}", res.unwrap()), "Int(8)");
 }
