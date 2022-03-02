@@ -27,12 +27,12 @@
   - [X] TEST
 - [x] Booleans
   - [X] TEST
-- [ ] Token hashtable?
+- [ ] Token hashtable? - **not doing**
 - [X] Better errors (`@L @R`)
   - [X] Add location data to ast
   - [X] Use AST to make errors
 - [X] Underscores
-- [ ] Closures
+- [X] Closures
 - [X] Builtin function
   - [X] List
     - [X] TEST
@@ -42,14 +42,16 @@
   - [X] Filter
   - [X] Any
   - [X] All
-  - [ ] Fold
+  - [X] Fold
   - [X] Length
+- [ ] Extra functions
+- [ ] Extra operators
+- [ ] Extra types
 
 ### API:
 
 - [x] Look into API design patterns in Rust
 - [x] Define API
-- [ ] API for AST printing?
 - [x] Adding arguments
 - [x] Flesh out return types
 - [ ] Adding extra builtin functions and operators

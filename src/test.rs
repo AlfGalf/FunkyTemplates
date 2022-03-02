@@ -1,5 +1,6 @@
+// Tests the library works and the values are returned correctly
 #[test]
-fn test_string_parsers() {
+fn test_library() {
   use crate::Argument;
   use crate::{Language, ReturnVal};
   let lang_op = Language::from_text("#main t -> f\"Hello {t + 3}\"f;");
@@ -16,6 +17,7 @@ fn test_string_parsers() {
   );
 }
 
+// Tests teh error messages are correct.
 #[test]
 fn test_errors() {
   use crate::Argument;

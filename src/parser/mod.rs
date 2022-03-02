@@ -1,5 +1,6 @@
 mod test;
 
+// Macro to import the lalrpop parser library
 lalrpop_mod!(
     #[allow(clippy::all)]
     #[allow(unused)]

@@ -1,7 +1,4 @@
 use std::borrow::Borrow;
-use std::cell::RefCell;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::ops::Add;
 
 use itertools::Itertools;
@@ -16,63 +13,7 @@ mod builtins;
 mod string_escapes;
 mod test;
 
-/// Frame for holding the environment in an execution of a program
-#[derive(Clone)]
-pub struct Frame {
-  frame: HashMap<String, InterpretVal>,
-  next: Option<RefCell<Box<Frame>>>,
-}
-
-impl Frame {
-  fn new() -> Self {
-    Self {
-      frame: HashMap::new(),
-      next: None,
-    }
-  }
-
-  fn from_template(t: &Template) -> Self {
-    Self {
-      frame: t
-        .env
-        .iter()
-        .map(|(a, b)| (a.clone(), InterpretVal::Function(b.clone())))
-        .collect(),
-      next: None,
-    }
-  }
-
-  fn add_val(&mut self, name: String, expr: &InterpretVal) -> Result<(), InterpretError> {
-    if let Entry::Vacant(e) = self.frame.entry(name) {
-      e.insert(expr.clone());
-      Ok(())
-    } else {
-      Err(InterpretError::new(
-        "Multiple variables within the same frame.",
-      ))
-    }
-  }
-
-  fn find(&self, name: &str) -> Result<InterpretVal, InterpretError> {
-    match name {
-      "true" => Ok(InterpretVal::Bool(true)),
-      "false" => Ok(InterpretVal::Bool(false)),
-      _ => {
-        if let Some(r) = self.frame.get(name) {
-          Ok(r.clone())
-        } else if let Some(n) = &self.next {
-          n.borrow().find(name)
-        } else {
-          Err(InterpretError::new(&*format!(
-            "Cannot find value {}.",
-            name
-          )))
-        }
-      }
-    }
-  }
-}
-
+// Interprets a specific top-level function in a template
 pub fn interpret(
   temp: &Template,
   name: &str,
@@ -96,6 +37,7 @@ pub fn interpret(
   Ok(interpret_val_to_return(&res)?)
 }
 
+// Converts an interpret value to a return val that can be returned through the API
 fn interpret_val_to_return(i: &InterpretVal) -> Result<ReturnVal, InterpretError> {
   match i {
     InterpretVal::Int(i) => Ok(ReturnVal::Int(*i)),
@@ -114,9 +56,13 @@ fn interpret_val_to_return(i: &InterpretVal) -> Result<ReturnVal, InterpretError
     InterpretVal::Function(_) => Err(InterpretError::new(
       "Cannot have function return type to root.",
     )),
+    InterpretVal::Lambda(_, _) => Err(InterpretError::new(
+      "Cannot have lambda return type to root.",
+    )),
   }
 }
 
+// Recursive function for evaluating an expression
 fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, InterpretError> {
   use crate::ast::ExprInner::*;
   match &expr.val {
@@ -144,7 +90,6 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
         }
       }
     },
-    Function(p) => Ok(InterpretVal::Function(p.clone())),
     FuncCall(f, a) => {
       let arg = interpret_recurse(a, env)?;
       {
@@ -157,10 +102,10 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
       .unwrap_or_else(|| {
         let val = interpret_recurse(f, env)?;
 
-        if let InterpretVal::Function(p) = val {
-          interpret_function(&p, env, arg)
-        } else {
-          Err(InterpretError::new("Called value that is not a function."))
+        match val {
+          InterpretVal::Function(p) => interpret_function(&p, env, arg),
+          InterpretVal::Lambda(p, e) => interpret_lambda(p, &mut e.clone(), arg),
+          _ => Err(InterpretError::new("Called value that is not a function.")),
         }
       })
     }
@@ -179,6 +124,7 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
         .map(|e| interpret_recurse(e, env))
         .collect::<Result<Vec<InterpretVal>, InterpretError>>()?,
     )),
+    Lambda(p) => Ok(InterpretVal::Lambda(*p.clone(), env.clone())),
   }
   .map_err(|mut e| {
     e.add_loc(expr.start, expr.end);
@@ -186,6 +132,7 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
   })
 }
 
+// Function for evaluating a binary operation
 fn eval_op(
   l: &Expr,
   op: &Opcode,
@@ -212,6 +159,10 @@ fn eval_op(
   }
 }
 
+// Function for checking if a pattern matches a set of arguments.
+// If it does, returns an Ok with a filled frame
+// Otherwise returns None
+// Returns an error if a variable with the same name is assigned to twice
 fn pattern_match(
   param: Expr,
   arg: InterpretVal,
@@ -259,11 +210,12 @@ fn pattern_match(
       }
     }
   }
-  res.next = Some(RefCell::new(Box::new(env.clone())));
+  res.set_next(env);
 
   Ok(Some(res))
 }
 
+// Interprets a function
 fn interpret_function(
   func: &[Pattern],
   env: &mut Frame,
@@ -286,4 +238,20 @@ fn interpret_function(
   }
 
   Err(InterpretError::new("Cannot find applicable pattern."))
+}
+
+// Interprets a lambda function
+fn interpret_lambda(
+  func: Pattern,
+  env: &mut Frame,
+  arg: InterpretVal,
+) -> Result<InterpretVal, InterpretError> {
+  if let Some(mut r) = pattern_match(func.start, arg, env)? {
+    r.set_next(env);
+    interpret_recurse(&func.result, &mut r)
+  } else {
+    Err(InterpretError::new(
+      "Lambda function did not match pattern.",
+    ))
+  }
 }
