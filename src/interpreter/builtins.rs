@@ -1,6 +1,9 @@
 use crate::interpreter::{interpret_function, interpret_lambda, Frame};
 use crate::{InterpretError, InterpretVal};
 
+// Checks if the token refers to an inbuilt function
+// If it does, executes that function and returns Some() with the result of the function
+// Otherwise, returns none
 pub fn built_in(
   name: String,
   arg: InterpretVal,

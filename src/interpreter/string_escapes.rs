@@ -1,9 +1,13 @@
 use crate::InterpretError;
 
+// Struct for iterating
 struct EscapedString<'a> {
   s: std::str::Chars<'a>,
 }
 
+// Iterates over an escaped string and removes escapes
+// This code is based off code from:
+// https://stackoverflow.com/questions/58551211/how-do-i-interpret-escaped-characters-in-a-string
 impl<'a> Iterator for EscapedString<'a> {
   type Item = Result<char, InterpretError>;
 
@@ -16,9 +20,8 @@ impl<'a> Iterator for EscapedString<'a> {
         Some('{') => Ok('{'),
         Some('}') => Ok('}'),
         Some('"') => Ok('"'),
-        // etc.
         Some(c) => Err(InterpretError::new(
-          format!("Unknown escape char {}", c).as_str(),
+          format!("Unknown escape char `{}`", c).as_str(),
         )),
       },
       c => Ok(c),
@@ -26,6 +29,8 @@ impl<'a> Iterator for EscapedString<'a> {
   }
 }
 
+// Processes a string and returns a Result with a String if everything is fine,
+// Otherwise returns an InterpretError
 pub fn process_string(str: &str) -> Result<String, InterpretError> {
   let s = EscapedString { s: str.chars() };
   s.collect()

@@ -34,7 +34,7 @@ pub fn interpret(
     }
   }?;
 
-  Ok(interpret_val_to_return(&res)?)
+  interpret_val_to_return(&res)
 }
 
 // Converts an interpret value to a return val that can be returned through the API
@@ -104,7 +104,7 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
 
         match val {
           InterpretVal::Function(p) => interpret_function(&p, env, arg),
-          InterpretVal::Lambda(p, e) => interpret_lambda(p, &mut e.clone(), arg),
+          InterpretVal::Lambda(p, mut e) => interpret_lambda(p, &mut e, arg),
           _ => Err(InterpretError::new("Called value that is not a function.")),
         }
       })

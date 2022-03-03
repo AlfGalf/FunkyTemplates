@@ -16,7 +16,7 @@ Comma<T>: Vec<T> = {
     }
 };
 
-// Shared
+// Name strings,
 pub Name: String = {
     <s:r"[A-Za-z][A-Za-z0-9_\-]*"> => s.to_string()
 };
@@ -27,41 +27,46 @@ pub Template: Template = {
     <f: Function> => Template { env: HashMap::from([(f.0, f.1)]) }
 };
 
-// Function definitions
+// Function name
 pub FunctionNameString: String = {
     "#" <s:Name> => s
 };
 
+// Funciton
 pub Function: (String, Vec<Pattern>) = {
     <n: FunctionNameString> <p: Patterns> => (n, p),
 };
 
+// Patterns for a function
 Patterns: Vec<Pattern> = {
     <mut ps: Patterns> <p: Pattern> => { ps.push(p); ps },
     <p: Pattern> => vec![p],
 };
 
+// Singular pattern
 pub Pattern: Pattern = {
     <e:Expr> ";" => Pattern {start: Expr::tuple(0, vec![], 0), result: e, guards: Vec::new()},
     <n:Expr> "->" <e:Expr> ";" => Pattern {start: n, result: e, guards: Vec::new()},
     <n:Expr> "->" <e:Expr> <g:Guards> ";" => Pattern {start: n, result: e, guards: g},
 };
 
+// Guards for a pattern
 Guards: Vec<Guard> = {
     <mut gs: Guards> <g: Guard> => { gs.push(g); gs },
     <g: Guard> => vec![g],
 };
 
+// Singular guard
 pub Guard: Guard = {
     "|" <n:Expr>  => Guard {expr: n}
 };
 
-// String terms
-
+// Non interpolated strings
 pub StringTerm: String = {
     <s: r#""[^"]*""#> => s[1..s.len()-1].to_string()
 };
 
+// Interpolated strings initial part
 StringInt: Vec<InterpolationPart> = {
     <s: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> => vec![InterpolationPart::String(s[2..s.len()-2].to_string())],
     <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <mut si: StringIntMid> <s2: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> => {
@@ -71,6 +76,7 @@ StringInt: Vec<InterpolationPart> = {
     },
 };
 
+// Central sections within an interpolation string
 StringIntMid: Vec<InterpolationPart> = {
     Expr => vec![InterpolationPart::Expr(<>)],
     <mut si: StringIntMid> <s: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <e: Expr> => {
@@ -80,26 +86,36 @@ StringIntMid: Vec<InterpolationPart> = {
     }
 };
 
-// Operations
+// Numbers
+Num: i32 = {
+    r"[0-9]+" => i32::from_str(<>).unwrap(),
+};
+
+// Toplevel for an expression
+// Seperated out so that can change the top level if necessary
 pub Expr: Expr = {
     LogicExpr
 };
 
+// Logic operations
 LogicExpr: Expr = {
     @L EqualityExpr LogicOp AddSubExpr @R => Expr::op(<>),
     EqualityExpr,
 };
 
+// Logic operations operator characters
 LogicOp: Opcode = {
     "&&" => Opcode::And,
     "||" => Opcode::Or,
 };
 
+// Equality operations
 EqualityExpr: Expr = {
     @L EqualityExpr EqualityOp AddSubExpr @R => Expr::op(<>),
     AddSubExpr,
 };
 
+// Equality operations operator characters
 EqualityOp: Opcode = {
     "==" => Opcode::Eq,
     "!=" => Opcode::Neq,
@@ -109,37 +125,47 @@ EqualityOp: Opcode = {
     ">" => Opcode::Gt,
 };
 
+// Addition and stubtratction operations
 AddSubExpr: Expr = {
     @L AddSubExpr AddSubExprOp Factor @R => Expr::op(<>),
     Factor,
 };
 
+// Addition and stubtratction operatior characters
 AddSubExprOp: Opcode = {
     "+" => Opcode::Add,
     "-" => Opcode::Sub,
 };
 
+// Multiplication, division and modulo operations
 Factor: Expr = {
     @L Factor FactorOp Term @R => Expr::op(<>),
     CallTerm,
 };
 
+// Multiplication, division and modulo operator charactes
 FactorOp: Opcode = {
     "*" => Opcode::Mul,
     "/" => Opcode::Div,
     "%" => Opcode::Mod,
 };
 
-UnaryOp: UnaryOp = {
-    "!" => UnaryOp::Not,
-    "-" => UnaryOp::Neg,
-};
-
+// Function
 CallTerm: Expr = {
     <l: @L> <e:CallTerm> "(" <l1:@L> <c: Comma<Expr>> <r1:@R> ")" <r:@R> => Expr::func_call(l, e, Expr::tuple(l1, c, r1), r),
     <t:Term> => t,
 }
 
+// Unary operations
+UnaryOp: UnaryOp = {
+    "!" => UnaryOp::Not,
+    "-" => UnaryOp::Neg,
+};
+
+// Other types of expression
+// Underscore (for pattern matching underscore)
+// Number, unary operator, tuples (and bracketed expressions), strings
+// Lambda expressions
 Term: Expr = {
     <l: @L> <m:"_"> <r:@R> => Expr::var(l, "_".to_string(), r),
     @L Name @R => Expr::var(<>),
@@ -157,10 +183,7 @@ Term: Expr = {
     <l:@L> "|" <l1:@L> <s: Comma<Expr>> <r1:@L> "=>" <e: Expr> "|" <r:@R> => Expr::lambda(l, Pattern { start: Expr::tuple(l1, s, r1), result: e, guards: vec![]}, r),
 };
 
-Num: i32 = {
-    r"[0-9]+" => i32::from_str(<>).unwrap(),
-};
-
+// Strings for the lexxer to ignore
 match {
     r"\s*" => { }, // The default whitespace skipping is disabled an `ignore pattern` is specified
     r"//[^\n\r]*[\n\r]*" => { }, // Skip `// comments`

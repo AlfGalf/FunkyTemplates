@@ -47,6 +47,7 @@
 - [ ] Extra functions
 - [ ] Extra operators
 - [ ] Extra types
+- [ ] Move string escaping to lalrpop
 
 ### API:
 
@@ -54,5 +55,5 @@
 - [x] Define API
 - [x] Adding arguments
 - [x] Flesh out return types
-- [ ] Adding extra builtin functions and operators
+- [ ] Adding extra builtin functions, types, and operators
 

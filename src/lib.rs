@@ -24,14 +24,15 @@ pub struct Language {
   lang: String,
 }
 
-// Represents an argument being parsed in to a function call
+/// Represents an argument being parsed in to a function call
 pub enum Argument {
   Int(i32),
   String(String),
   Tuple(Vec<Argument>),
 }
 
-/// Represents a function within a template
+/// Represents a function from a template
+/// Can contain an argument also
 pub struct LangFunc {
   lang: Rc<Template>,
   name: String,
@@ -41,6 +42,11 @@ pub struct LangFunc {
 
 impl Language {
   /// Builds a language from a code string
+  ///
+  /// ## Example
+  /// ```
+  /// let x = Language::from_text("#main x -> x + 1;");
+  /// ```
   pub fn from_text(lang: &str) -> Result<Self, LanguageErr> {
     let parser: TemplateParser = TemplateParser::new();
     let res = parser.parse(lang);
@@ -56,11 +62,24 @@ impl Language {
     }
   }
 
+  /// Lists the available functions
+  ///
+  /// ## Example
+  /// ```
+  /// let x = Language::from_text("#main x -> x + 1;")?;
+  /// x.list() // -> ["main"]
+  /// ```
   pub fn list(&self) -> Vec<String> {
     return self.temp.env.keys().map(|s| s.to_string()).collect();
   }
 
   /// Selects a function from the template
+  ///
+  /// ## Example
+  /// ```
+  /// let x = Language::from_text("#main x -> x + 1;")?;
+  /// let f = x.function("main");
+  /// ```
   pub fn function(&self, name: &str) -> Result<LangFunc, LanguageErr> {
     if self.temp.env.contains_key(name) {
       Ok(LangFunc {
@@ -78,13 +97,9 @@ impl Language {
   }
 }
 
-impl LangFunc {
-  pub fn arg(mut self, arg: Argument) -> Self {
-    self.arg = Some(arg);
-    self
-  }
-}
+impl LangFunc {}
 
+/// Type for the values returned from the interpretation
 #[derive(Debug, PartialEq)]
 pub enum ReturnVal {
   String(String),
@@ -95,6 +110,28 @@ pub enum ReturnVal {
 }
 
 impl LangFunc {
+  /// Adds an argument for a function call
+  ///
+  /// ## Example
+  /// ```
+  /// let x = Language::from_text("#main x -> x + 4;")?;
+  /// let f = x.function("main")?;
+  /// let f = f.arg(Argument::Int(5));
+  /// f.call()? // -> ReturnVal::Int(9)
+  /// ```
+  pub fn arg(mut self, arg: Argument) -> Self {
+    self.arg = Some(arg);
+    self
+  }
+  /// Interprets this function
+  /// Can return a language error if the interpretation fails
+  ///
+  /// ## Example
+  /// ```
+  /// let x = Language::from_text("#main 5;")?;
+  /// let f = x.function("main")?;
+  /// f.call() // -> ReturnVal::Int(9)
+  /// ```
   pub fn call(&self) -> Result<ReturnVal, LanguageErr> {
     if let Some(x) = &self.arg {
       interpret(
@@ -113,18 +150,22 @@ impl LangFunc {
   }
 }
 
+/// A location error with a location
 pub struct LocationLangErr {
   message: String,
   lines: (usize, usize),
   section: String,
 }
 
+/// An enum for the possible types of error that can result from interpretation
 pub enum LanguageErr {
   NoLoc(String),
   Loc(LocationLangErr),
 }
 
 impl LanguageErr {
+  /// Creates a language error with location information
+  /// Adds in the original language string so the line numbers and string section can be found
   fn new_loc(message: String, location: (usize, usize), lang: String) -> Self {
     let lines_to_start = lang[0..location.0]
       .as_bytes()
@@ -145,10 +186,12 @@ impl LanguageErr {
     })
   }
 
+  /// Creates a location error with no location data
   fn new_no_loc(message: String) -> Self {
     LanguageErr::NoLoc(message)
   }
 
+  /// Creates a location error from an interpretation error
   fn from_int_err(err: InterpretError, lang: String) -> Self {
     if err.location.is_some() {
       Self::new_loc(err.message, err.location.unwrap(), lang)
