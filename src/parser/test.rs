@@ -1,4 +1,4 @@
-// Test to check strings parse correctly
+// Test to check strings, and name strings parse correctly
 #[test]
 fn test_string_parsers() {
   use crate::parser::language_definition;
