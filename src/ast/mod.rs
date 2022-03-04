@@ -1,7 +1,25 @@
 use std::collections::HashMap;
+use std::env::var;
 use std::fmt::{Debug, Error, Formatter};
 
 use itertools::Itertools;
+
+use crate::external_operators::OperatorChars;
+
+// Parser state
+pub struct ParserState {
+  pub unary_ops: Vec<OperatorChars>,
+  pub binary_ops: Vec<OperatorChars>,
+}
+
+impl ParserState {
+  pub fn new() -> Self {
+    Self {
+      unary_ops: vec![],
+      binary_ops: vec![],
+    }
+  }
+}
 
 // Template
 pub struct Template {
@@ -36,6 +54,8 @@ pub enum ExprInner {
   Number(i32),
   Op(Box<Expr>, Opcode, Box<Expr>),
   Unary(UnaryOp, Box<Expr>),
+  CustomBinOp(Box<Expr>, OperatorChars, Box<Expr>),
+  CustomUnaryOp(OperatorChars, Box<Expr>),
   FuncCall(Box<Expr>, Box<Expr>),
   Var(String),
   Tuple(Vec<Expr>),
@@ -71,6 +91,20 @@ impl Expr {
   // Builds a expression with a Unary inner expression
   pub fn unary(start: usize, v1: UnaryOp, v2: Expr, end: usize) -> Self {
     Self::new(start, ExprInner::Unary(v1, Box::new(v2)), end)
+  }
+
+  // Builds a expression with an CustomBinOp inner expression
+  pub fn custom_op(start: usize, v1: Expr, v2: OperatorChars, v3: Expr, end: usize) -> Self {
+    Self::new(
+      start,
+      ExprInner::CustomBinOp(Box::new(v1), v2, Box::new(v3)),
+      end,
+    )
+  }
+
+  // Builds a expression with a Unary inner expression
+  pub fn custom_unary(start: usize, v1: OperatorChars, v2: Expr, end: usize) -> Self {
+    Self::new(start, ExprInner::CustomUnaryOp(v1, Box::new(v2)), end)
   }
 
   // Builds a expression with a function call inner expression
@@ -178,6 +212,8 @@ impl Debug for Expr {
           .join(" + ")
       ),
       ExprInner::Lambda(ref p) => write!(fmt, "|{:?}|", p),
+      ExprInner::CustomBinOp(_, _, _) => todo!(),
+      ExprInner::CustomUnaryOp(_, _) => todo!(),
     }
   }
 }

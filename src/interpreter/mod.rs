@@ -6,11 +6,9 @@ use itertools::Itertools;
 use crate::ast::*;
 use crate::data_types::*;
 use crate::interpreter::builtins::built_in;
-use crate::interpreter::string_escapes::process_string;
 use crate::ReturnVal;
 
 mod builtins;
-mod string_escapes;
 mod test;
 
 // Interprets a specific top-level function in a template
@@ -66,7 +64,7 @@ fn interpret_val_to_return(i: &InterpretVal) -> Result<ReturnVal, InterpretError
 fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, InterpretError> {
   use crate::ast::ExprInner::*;
   match &expr.val {
-    Str(s) => Ok(InterpretVal::String(process_string(s)?)),
+    Str(s) => Ok(InterpretVal::String(s.to_string())),
     Number(n) => Ok(InterpretVal::Int(*n)),
     Unary(o, e) => match o {
       UnaryOp::Not => {
@@ -113,8 +111,8 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
     InterpolationString(vs) => Ok(InterpretVal::String(
       vs.iter()
         .map(|p| match p {
-          InterpolationPart::String(s) => Ok(process_string(s)?),
-          InterpolationPart::Expr(e) => Ok(interpret_recurse(e, env)?.print()),
+          InterpolationPart::String(s) => Ok(s.to_string()),
+          InterpolationPart::Expr(e) => Ok(interpret_recurse(e, env)?.to_string()),
         })
         .fold_ok(String::new(), |s, p| s.add(p.as_str()))?,
     )),
@@ -125,6 +123,8 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
         .collect::<Result<Vec<InterpretVal>, InterpretError>>()?,
     )),
     Lambda(p) => Ok(InterpretVal::Lambda(*p.clone(), env.clone())),
+    CustomBinOp(_, _, _) => todo!(),
+    CustomUnaryOp(_, _) => todo!(),
   }
   .map_err(|mut e| {
     e.add_loc(expr.start, expr.end);

@@ -1,3 +1,4 @@
+pub mod string_escapes;
 mod test;
 
 // Macro to import the lalrpop parser library

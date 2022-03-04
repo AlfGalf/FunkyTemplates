@@ -2,8 +2,8 @@
 #[test]
 fn test_library() {
   use crate::Argument;
-  use crate::{Language, ReturnVal};
-  let lang_op = Language::from_text("#main t -> f\"Hello {t + 3}\"f;");
+  use crate::{ParsedTemplate, ReturnVal};
+  let lang_op = ParsedTemplate::from_text("#main t -> f\"Hello {t + 3}\"f;");
   assert!(lang_op.is_ok());
   let lang = lang_op.unwrap();
   assert_eq!(
@@ -21,8 +21,8 @@ fn test_library() {
 #[test]
 fn test_errors() {
   use crate::Argument;
-  use crate::Language;
-  let lang_op = Language::from_text("#main t -> \nf\"Hello {t + \n \"hi\"}\"f;");
+  use crate::ParsedTemplate;
+  let lang_op = ParsedTemplate::from_text("#main t -> \nf\"Hello {t + \n \"hi\"}\"f;");
   assert!(lang_op.is_ok());
   let lang = lang_op.unwrap();
   assert_eq!(

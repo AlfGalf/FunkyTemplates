@@ -2,13 +2,14 @@ extern crate core;
 #[macro_use]
 extern crate lalrpop_util;
 
-use std::fmt::{Debug, Display, Formatter};
-use std::rc::Rc;
+use std::collections::HashSet;
+use std::fmt::{Debug, Formatter};
 
 use itertools::Itertools;
 
-use crate::ast::Template;
+use crate::ast::{ParserState, Template};
 use crate::data_types::{InterpretError, InterpretVal};
+use crate::external_operators::CustomOperator;
 use crate::interpreter::interpret;
 use crate::parser::language_definition::TemplateParser;
 
@@ -18,10 +19,18 @@ mod interpreter;
 mod parser;
 mod test;
 
-/// Represents a set of template functions
+pub mod external_operators;
+
+/// Represents a language to be parsed
 pub struct Language {
-  temp: Rc<Template>,
+  operators: HashSet<CustomOperator>,
+}
+
+/// Represents a set of template functions
+pub struct ParsedTemplate {
   lang: String,
+  temp: Template,
+  operators: HashSet<CustomOperator>,
 }
 
 /// Represents an argument being parsed in to a function call
@@ -33,27 +42,29 @@ pub enum Argument {
 
 /// Represents a function from a template
 /// Can contain an argument also
-pub struct LangFunc {
-  lang: Rc<Template>,
+pub struct LangFunc<'a> {
+  lang: &'a ParsedTemplate,
   name: String,
   arg: Option<Argument>,
   text: String,
 }
 
-impl Language {
+impl ParsedTemplate {
   /// Builds a language from a code string
   ///
   /// ## Example
   /// ```
-  /// let x = Language::from_text("#main x -> x + 1;");
+  /// use funki_templates::ParsedTemplate;
+  /// let x = ParsedTemplate::from_text("#main x -> x + 1;");
   /// ```
   pub fn from_text(lang: &str) -> Result<Self, LanguageErr> {
     let parser: TemplateParser = TemplateParser::new();
-    let res = parser.parse(lang);
+    let res = parser.parse(&ParserState::new(), lang);
     match res {
       Ok(l) => Ok(Self {
-        temp: Rc::new(l),
+        temp: l,
         lang: lang.to_string(),
+        operators: HashSet::new(),
       }),
       Err(e) => {
         // println!("{}", e);
@@ -66,8 +77,9 @@ impl Language {
   ///
   /// ## Example
   /// ```
-  /// let x = Language::from_text("#main x -> x + 1;")?;
-  /// x.list() // -> ["main"]
+  /// use funki_templates::ParsedTemplate;
+  /// let x = ParsedTemplate::from_text("#main x -> x + 1;").unwrap();
+  /// x.list(); // -> ["main"]
   /// ```
   pub fn list(&self) -> Vec<String> {
     return self.temp.env.keys().map(|s| s.to_string()).collect();
@@ -77,13 +89,14 @@ impl Language {
   ///
   /// ## Example
   /// ```
-  /// let x = Language::from_text("#main x -> x + 1;")?;
+  /// use funki_templates::ParsedTemplate;
+  /// let x = ParsedTemplate::from_text("#main x -> x + 1;").unwrap();
   /// let f = x.function("main");
   /// ```
   pub fn function(&self, name: &str) -> Result<LangFunc, LanguageErr> {
     if self.temp.env.contains_key(name) {
       Ok(LangFunc {
-        lang: Rc::clone(&self.temp),
+        lang: self,
         name: name.to_string(),
         arg: None,
         text: self.lang.clone(),
@@ -97,10 +110,8 @@ impl Language {
   }
 }
 
-impl LangFunc {}
-
 /// Type for the values returned from the interpretation
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum ReturnVal {
   String(String),
   Int(i32),
@@ -109,15 +120,16 @@ pub enum ReturnVal {
   List(Vec<ReturnVal>),
 }
 
-impl LangFunc {
+impl<'a> LangFunc<'a> {
   /// Adds an argument for a function call
   ///
   /// ## Example
   /// ```
-  /// let x = Language::from_text("#main x -> x + 4;")?;
-  /// let f = x.function("main")?;
+  /// use funki_templates::{Argument, ParsedTemplate};
+  /// let x = ParsedTemplate::from_text("#main x -> x + 4;").unwrap();
+  /// let f = x.function("main").unwrap();
   /// let f = f.arg(Argument::Int(5));
-  /// f.call()? // -> ReturnVal::Int(9)
+  /// f.call().unwrap(); // -> ReturnVal::Int(9)
   /// ```
   pub fn arg(mut self, arg: Argument) -> Self {
     self.arg = Some(arg);
@@ -128,20 +140,21 @@ impl LangFunc {
   ///
   /// ## Example
   /// ```
-  /// let x = Language::from_text("#main 5;")?;
-  /// let f = x.function("main")?;
-  /// f.call() // -> ReturnVal::Int(9)
+  /// use funki_templates::{Language, ParsedTemplate};
+  /// let x = ParsedTemplate::from_text("#main 5;").unwrap();
+  /// let f = x.function("main").unwrap();
+  /// f.call().unwrap(); // -> ReturnVal::Int(5)
   /// ```
   pub fn call(&self) -> Result<ReturnVal, LanguageErr> {
     if let Some(x) = &self.arg {
       interpret(
-        self.lang.as_ref(),
+        &self.lang.temp,
         self.name.as_str(),
         InterpretVal::from_arg(x),
       )
     } else {
       interpret(
-        self.lang.as_ref(),
+        &self.lang.temp,
         self.name.as_str(),
         InterpretVal::Tuple(vec![]),
       )
@@ -150,7 +163,7 @@ impl LangFunc {
   }
 }
 
-/// A location error with a location
+/// A language error with a location
 pub struct LocationLangErr {
   message: String,
   lines: (usize, usize),
@@ -221,7 +234,7 @@ impl Debug for LanguageErr {
   }
 }
 
-impl Display for ReturnVal {
+impl Debug for ReturnVal {
   fn fmt(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
     match self {
       ReturnVal::Bool(b) => write!(fmt, "Bool({})", b),
@@ -230,13 +243,25 @@ impl Display for ReturnVal {
       ReturnVal::Tuple(v) => write!(
         fmt,
         "Tuple({})",
-        v.iter().map(|i| format!("{}", i)).join(", ")
+        v.iter().map(|i| format!("{:?}", i)).join(", ")
       ),
       ReturnVal::List(v) => write!(
         fmt,
         "List({})",
-        v.iter().map(|i| format!("{}", i)).join(", ")
+        v.iter().map(|i| format!("{:?}", i)).join(", ")
       ),
+    }
+  }
+}
+
+impl ToString for ReturnVal {
+  fn to_string(&self) -> String {
+    match self {
+      ReturnVal::Bool(b) => b.to_string(),
+      ReturnVal::Int(i) => i.to_string(),
+      ReturnVal::String(s) => s.to_string(),
+      ReturnVal::Tuple(v) => format!("({})", v.iter().map(|i| i.to_string()).join(", ")),
+      ReturnVal::List(v) => format!("[{}]", v.iter().map(|i| i.to_string()).join(", ")),
     }
   }
 }

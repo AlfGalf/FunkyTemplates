@@ -2,30 +2,31 @@
 #[test]
 fn test_string_parsers() {
   use crate::parser::language_definition;
+  use crate::ParserState;
   assert_eq!(
     language_definition::FunctionNameStringParser::new()
-      .parse("#asASD_879")
+      .parse(&ParserState::new(), "#asASD_879")
       .unwrap(),
     "asASD_879"
   );
 
   assert!(language_definition::FunctionNameStringParser::new()
-    .parse("#2asASD_879")
+    .parse(&ParserState::new(), "#2asASD_879")
     .is_err());
 
   assert_eq!(
     language_definition::StringTermParser::new()
-      .parse("\"hello, world\"")
+      .parse(&ParserState::new(), "\"hello, world\"")
       .unwrap(),
     "hello, world"
   );
 
   assert!(language_definition::FunctionNameStringParser::new()
-    .parse("\"hello \n world\"")
+    .parse(&ParserState::new(), "\"hello \n world\"")
     .is_err());
 
   assert!(language_definition::FunctionNameStringParser::new()
-    .parse("\"hello \" world\"")
+    .parse(&ParserState::new(), "\"hello \" world\"")
     .is_err());
 }
 
@@ -33,11 +34,12 @@ fn test_string_parsers() {
 #[test]
 fn test_function_parser() {
   use crate::parser::language_definition;
+  use crate::ParserState;
   assert_eq!(
     format!(
       "{:?}",
       language_definition::PatternParser::new()
-        .parse("x -> 5 + 4;\n")
+        .parse(&ParserState::new(), "x -> 5 + 4;\n")
         .unwrap()
     ),
     "x -> (5 + 4)"
@@ -47,7 +49,7 @@ fn test_function_parser() {
     format!(
       "{:?}",
       language_definition::FunctionParser::new()
-        .parse("#main \n    x -> 5 + 4;\n")
+        .parse(&ParserState::new(), "#main \n    x -> 5 + 4;\n")
         .unwrap()
     ),
     "(\"main\", [x -> (5 + 4)])"
@@ -56,7 +58,7 @@ fn test_function_parser() {
     format!(
       "{:?}",
       language_definition::FunctionParser::new()
-        .parse("#main \n x -> 5 + 4 ;\n y -> 5-2;\n")
+        .parse(&ParserState::new(), "#main \n x -> 5 + 4 ;\n y -> 5-2;\n")
         .unwrap()
     ),
     "(\"main\", [x -> (5 + 4), y -> (5 - 2)])"
@@ -65,7 +67,7 @@ fn test_function_parser() {
     format!(
       "{:?}",
       language_definition::FunctionParser::new()
-        .parse("#main \n (a, b) -> a + 4;\n")
+        .parse(&ParserState::new(), "#main \n (a, b) -> a + 4;\n")
         .unwrap()
     ),
     "(\"main\", [{a, b} -> (a + 4)])"
@@ -74,7 +76,7 @@ fn test_function_parser() {
     format!(
       "{:?}",
       language_definition::FunctionParser::new()
-        .parse("#main \n (a, (c, true)) -> a + c;\n")
+        .parse(&ParserState::new(), "#main \n (a, (c, true)) -> a + c;\n")
         .unwrap()
     ),
     "(\"main\", [{a, {c, true}} -> (a + c)])"
@@ -85,11 +87,12 @@ fn test_function_parser() {
 #[test]
 fn test_function_guards() {
   use crate::parser::language_definition;
+  use crate::ParserState;
   assert_eq!(
     format!(
       "{:?}",
       language_definition::PatternParser::new()
-        .parse("x -> 5 + 4\n| test();\n")
+        .parse(&ParserState::new(), "x -> 5 + 4\n| test();\n")
         .unwrap()
     ),
     "x -> (5 + 4)"
@@ -100,16 +103,20 @@ fn test_function_guards() {
 #[test]
 fn test_term_parser() {
   use crate::parser::language_definition;
+  use crate::ParserState;
+
   assert_eq!(
     language_definition::NameParser::new()
-      .parse("name")
+      .parse(&ParserState::new(), "name")
       .unwrap(),
     "name"
   );
   assert_eq!(
     format!(
       "{:?}",
-      language_definition::ExprParser::new().parse("5").unwrap()
+      language_definition::ExprParser::new()
+        .parse(&ParserState::new(), "5")
+        .unwrap()
     ),
     "5"
   );
@@ -117,7 +124,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("5 + 2 * 3")
+        .parse(&ParserState::new(), "5 + 2 * 3")
         .unwrap()
     ),
     "(5 + (2 * 3))"
@@ -126,7 +133,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("5 - 2 % 3")
+        .parse(&ParserState::new(), "5 - 2 % 3")
         .unwrap()
     ),
     "(5 - (2 % 3))"
@@ -135,7 +142,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("func(1, 2)")
+        .parse(&ParserState::new(), "func(1, 2)")
         .unwrap()
     ),
     "func({1, 2})"
@@ -144,7 +151,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("func()")
+        .parse(&ParserState::new(), "func()")
         .unwrap()
     ),
     "func({})"
@@ -153,7 +160,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("func")
+        .parse(&ParserState::new(), "func")
         .unwrap()
     ),
     "func"
@@ -162,7 +169,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("func(1, 2 + 3)")
+        .parse(&ParserState::new(), "func(1, 2 + 3)")
         .unwrap()
     ),
     "func({1, (2 + 3)})"
@@ -171,7 +178,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("2 + 3 == 5")
+        .parse(&ParserState::new(), "2 + 3 == 5")
         .unwrap()
     ),
     "((2 + 3) == 5)"
@@ -180,7 +187,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("2 + 3 != 5")
+        .parse(&ParserState::new(), "2 + 3 != 5")
         .unwrap()
     ),
     "((2 + 3) != 5)"
@@ -189,7 +196,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("2 + 3 <= 5")
+        .parse(&ParserState::new(), "2 + 3 <= 5")
         .unwrap()
     ),
     "((2 + 3) <= 5)"
@@ -198,7 +205,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("2 + 3 >= 5")
+        .parse(&ParserState::new(), "2 + 3 >= 5")
         .unwrap()
     ),
     "((2 + 3) >= 5)"
@@ -207,7 +214,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("2 + 3 < 5")
+        .parse(&ParserState::new(), "2 + 3 < 5")
         .unwrap()
     ),
     "((2 + 3) < 5)"
@@ -216,7 +223,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("2 + 3 > 5")
+        .parse(&ParserState::new(), "2 + 3 > 5")
         .unwrap()
     ),
     "((2 + 3) > 5)"
@@ -225,7 +232,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("(5, 6, 7)")
+        .parse(&ParserState::new(), "(5, 6, 7)")
         .unwrap()
     ),
     "{5, 6, 7}"
@@ -234,7 +241,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("(5, func(), 7)")
+        .parse(&ParserState::new(), "(5, func(), 7)")
         .unwrap()
     ),
     "{5, func({}), 7}"
@@ -243,7 +250,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("!true")
+        .parse(&ParserState::new(), "!true")
         .unwrap()
     ),
     "!(true)"
@@ -252,15 +259,8 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("!!true")
+        .parse(&ParserState::new(), "-1")
         .unwrap()
-    ),
-    "!(!(true))"
-  );
-  assert_eq!(
-    format!(
-      "{:?}",
-      language_definition::ExprParser::new().parse("-1").unwrap()
     ),
     "-(1)"
   );
@@ -268,7 +268,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("true && !true")
+        .parse(&ParserState::new(), "true && !true")
         .unwrap()
     ),
     "(true && !(true))"
@@ -277,7 +277,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("\"Hello\"")
+        .parse(&ParserState::new(), "\"Hello\"")
         .unwrap()
     ),
     "\"Hello\""
@@ -286,7 +286,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("\"Hello\nhello\"")
+        .parse(&ParserState::new(), "\"Hello\nhello\"")
         .unwrap()
     ),
     "\"Hello\nhello\""
@@ -295,7 +295,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("f\"Hellohello\"f")
+        .parse(&ParserState::new(), "f\"Hellohello\"f")
         .unwrap()
     ),
     "stringInt(\"Hellohello\")"
@@ -304,7 +304,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("f\"Hello{a}hello\"f")
+        .parse(&ParserState::new(), "f\"Hello{a}hello\"f")
         .unwrap()
     ),
     "stringInt(\"Hello\" + a + \"hello\")"
@@ -313,7 +313,7 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("f\"Hello{a}hello{b}\"f")
+        .parse(&ParserState::new(), "f\"Hello{a}hello{b}\"f")
         .unwrap()
     ),
     "stringInt(\"Hello\" + a + \"hello\" + b + \"\")"
@@ -322,7 +322,10 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("f\"Hello{f\"test \n{b} test\"f}hello{b}\"f")
+        .parse(
+          &ParserState::new(),
+          "f\"Hello{f\"test \n{b} test\"f}hello{b}\"f",
+        )
         .unwrap()
     ),
     "stringInt(\"Hello\" + stringInt(\"test \n\" + b + \" test\") + \"hello\" + b + \"\")"
@@ -331,16 +334,19 @@ fn test_term_parser() {
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("f\"\\{\\} {x} \\\"\"f")
+        .parse(&ParserState::new(), "f\"\\{\\} {x} \\\"\"f")
         .unwrap()
     ),
-    "stringInt(\"\\{\\} \" + x + \" \\\"\")"
+    "stringInt(\"{} \" + x + \" \"\")"
   );
+  assert!(language_definition::ExprParser::new()
+    .parse(&ParserState::new(), "f\"{\\}\"f")
+    .is_err());
   assert_eq!(
     format!(
       "{:?}",
       language_definition::ExprParser::new()
-        .parse("|a, b => c|")
+        .parse(&ParserState::new(), "|a, b => c|")
         .unwrap()
     ),
     "|{a, b} -> c|"
@@ -351,11 +357,13 @@ fn test_term_parser() {
 #[test]
 fn test_template() {
   use crate::parser::language_definition;
+  use crate::ParserState;
+
   assert_eq!(
     format!(
       "{:?}",
       language_definition::TemplateParser::new()
-        .parse("#main\n  x -> true;\n")
+        .parse(&ParserState::new(), "#main\n  x -> true;\n")
         .unwrap()
     ),
     "#main x -> true"
@@ -364,7 +372,10 @@ fn test_template() {
     format!(
       "{:?}",
       language_definition::TemplateParser::new()
-        .parse("#main\n x -> true;\n #second\n y -> false;\n")
+        .parse(
+          &ParserState::new(),
+          "#main\n x -> true;\n #second\n y -> false;\n",
+        )
         .unwrap()
     ),
     "#main x -> true\n#second y -> false"
@@ -373,7 +384,10 @@ fn test_template() {
     format!(
       "{:?}",
       language_definition::TemplateParser::new()
-        .parse("#main\n x -> true ;\n\n\n #second\n y -> false;\n")
+        .parse(
+          &ParserState::new(),
+          "#main\n x -> true ;\n\n\n #second\n y -> false;\n",
+        )
         .unwrap()
     ),
     "#main x -> true\n#second y -> false"
@@ -403,7 +417,7 @@ test -> 6;";
       format!(
         "{:?}",
         language_definition::TemplateParser::new()
-          .parse(test_str)
+          .parse(&ParserState::new(), test_str)
           .unwrap()
       ),
       res_str

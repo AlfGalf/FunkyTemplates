@@ -1,9 +1,16 @@
 // Adapted from LALRPOP book examples
 use std::str::FromStr;
 use crate::ast::*;
+use crate::external_operators::OperatorChars;
 use std::collections::HashMap;
+use super::string_escapes::process_string;
+use lalrpop_util::ParseError;
 
-grammar();
+grammar<'ast>(state: &'ast ParserState);
+
+extern {
+    type Error = String;
+}
 
 // Helpers
 Comma<T>: Vec<T> = {
@@ -63,27 +70,33 @@ pub Guard: Guard = {
 
 // Non interpolated strings
 pub StringTerm: String = {
-    <s: r#""[^"]*""#> => s[1..s.len()-1].to_string()
+    <s: r#""[^"]*""#> =>? process_string(&s[1..s.len()-1]).map_err(|s| ParseError::User {error: s}),
 };
 
 // Interpolated strings initial part
 StringInt: Vec<InterpolationPart> = {
-    <s: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> => vec![InterpolationPart::String(s[2..s.len()-2].to_string())],
-    <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <mut si: StringIntMid> <s2: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> => {
-        si.insert(0, InterpolationPart::String(s1[2..s1.len()-1].to_string()));
-        si.push(InterpolationPart::String(s2[1..s2.len()-2].to_string()));
+    <s: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> =>? Ok(vec![InterpolationPart::String(process_string(&s[2..s.len()-2]).map_err(|s| ParseError::User {error: s})?)]),
+    <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <mut si: StringIntMid> <s2: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> =>? Ok({
+        si.insert(0, InterpolationPart::String(
+            process_string(&s1[2..s1.len()-1]).map_err(|s| ParseError::User {error: s})?
+        ));
+        si.push(InterpolationPart::String(
+            process_string(&s2[1..s2.len()-2]).map_err(|s| ParseError::User {error: s})?
+        ));
         si
-    },
+    }),
 };
 
 // Central sections within an interpolation string
 StringIntMid: Vec<InterpolationPart> = {
     Expr => vec![InterpolationPart::Expr(<>)],
-    <mut si: StringIntMid> <s: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <e: Expr> => {
-        si.push(InterpolationPart::String(s[1..s.len()-1].to_string()));
+    <mut si: StringIntMid> <s: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <e: Expr> =>? Ok({
+        si.push(InterpolationPart::String(
+            process_string(&s[1..s.len()-1]).map_err(|s| ParseError::User {error: s})?
+        ));
         si.push(InterpolationPart::Expr(e));
         si
-    }
+    })
 };
 
 // Numbers
@@ -139,7 +152,7 @@ AddSubExprOp: Opcode = {
 
 // Multiplication, division and modulo operations
 Factor: Expr = {
-    @L Factor FactorOp Term @R => Expr::op(<>),
+    @L Factor FactorOp CallTerm @R => Expr::op(<>),
     CallTerm,
 };
 
@@ -153,7 +166,7 @@ FactorOp: Opcode = {
 // Function
 CallTerm: Expr = {
     <l: @L> <e:CallTerm> "(" <l1:@L> <c: Comma<Expr>> <r1:@R> ")" <r:@R> => Expr::func_call(l, e, Expr::tuple(l1, c, r1), r),
-    <t:Term> => t,
+    CustomBinOp,
 }
 
 // Unary operations
@@ -161,6 +174,45 @@ UnaryOp: UnaryOp = {
     "!" => UnaryOp::Not,
     "-" => UnaryOp::Neg,
 };
+
+//------------------------
+// Custom operators
+//------------------------
+
+CustomOperator: OperatorChars = {
+    "?" => OperatorChars::QuestionMark,
+}
+
+
+// Custom defined binary expressions
+CustomBinOp: Expr = {
+    <l:@L> <le:CustomBinOp> <o: CustomOperator> <re:UnaryExpr> <r:@R> =>? {
+        if state.binary_ops.contains(&o) {
+            Ok(Expr::custom_op(<>))
+        } else {
+            Err(ParseError::User { error: "This binary operator is not defined".to_string() })
+        }
+    },
+    CustomUnaryOp,
+}
+
+// Custom defined unary expressions
+CustomUnaryOp: Expr = {
+    <l:@L> <o: CustomOperator> <e:UnaryExpr> <r:@R> =>? {
+        if state.unary_ops.contains(&o) {
+            Ok(Expr::custom_unary(<>))
+        } else {
+            Err(ParseError::User { error: "This unary operator is not defined".to_string() })
+        }
+    },
+    UnaryExpr,
+}
+
+// Built in unary expressions
+UnaryExpr: Expr = {
+    @L UnaryOp Term @R => Expr::unary(<>),
+    Term,
+}
 
 // Other types of expression
 // Underscore (for pattern matching underscore)
@@ -170,7 +222,6 @@ Term: Expr = {
     <l: @L> <m:"_"> <r:@R> => Expr::var(l, "_".to_string(), r),
     @L Name @R => Expr::var(<>),
     @L Num @R => Expr::number(<>),
-    @L UnaryOp Term @R => Expr::unary(<>),
     <l:@L> "(" <v: Comma<Expr>> ")" <r:@R> => {
         if v.len() == 1 {
             v[0].clone()
@@ -182,6 +233,7 @@ Term: Expr = {
     @L StringInt @R => Expr::interpolation_string(<>),
     <l:@L> "|" <l1:@L> <s: Comma<Expr>> <r1:@L> "=>" <e: Expr> "|" <r:@R> => Expr::lambda(l, Pattern { start: Expr::tuple(l1, s, r1), result: e, guards: vec![]}, r),
 };
+
 
 // Strings for the lexxer to ignore
 match {

@@ -11,77 +11,92 @@ fn blank() -> InterpretVal {
 #[test]
 fn test_interpret() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
-  let temp = TemplateParser::new().parse("#main\n5;").unwrap();
+  use crate::{ParserState, TemplateParser};
+  let temp = TemplateParser::new()
+    .parse(&ParserState::new(), "#main\n5;")
+    .unwrap();
   let res = interpret(&temp, "main", blank());
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Int(5)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(5)");
 }
 
-// Tests lambda funcitons
+// Tests lambda functions
 #[test]
 fn test_lambda() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
-  let temp = TemplateParser::new().parse("#main\n|x => 5|();").unwrap();
+  use crate::{ParserState, TemplateParser};
+  let temp = TemplateParser::new()
+    .parse(&ParserState::new(), "#main\n|x => 5|();")
+    .unwrap();
   let res = interpret(&temp, "main", blank());
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Int(5)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(5)");
 }
 
 // Tests functions work
 #[test]
 fn test_func() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
-  let temp = TemplateParser::new().parse("#one 1;#main\none();").unwrap();
+  use crate::{ParserState, TemplateParser};
+  let temp = TemplateParser::new()
+    .parse(&ParserState::new(), "#one 1;#main\none();")
+    .unwrap();
   let res = interpret(&temp, "main", blank());
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Int(1)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(1)");
 }
 
 // Tests string interpolation
 #[test]
 fn test_interpolation() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
   let temp = TemplateParser::new()
-    .parse("#main\nf\"test{2}test{5}\"f;")
+    .parse(&ParserState::new(), "#main\nf\"test{2}test{5}\"f;")
     .unwrap();
   let res = interpret(&temp, "main", blank());
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "String(test2test5)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "String(test2test5)");
 }
 
 // Tests the addition and subtraction operators
 #[test]
 fn test_add_sub() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
   let temp = TemplateParser::new()
-    .parse("#main\nf\"test{2+2} {4-3} {2--1}\"f + \"test\";")
+    .parse(
+      &ParserState::new(),
+      "#main\nf\"test{2+2} {4-3} {2--1}\"f + \"test\";",
+    )
     .unwrap();
   let res = interpret(&temp, "main", blank());
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "String(test4 1 3test)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "String(test4 1 3test)");
 }
 
 // Tests the multiply and divide operators
 #[test]
 fn test_mult_div() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
   let temp = TemplateParser::new()
-    .parse("#main\n f\"test{2*3} {10/3} {\"test\" * 2}\"f;")
+    .parse(
+      &ParserState::new(),
+      "#main\n f\"test{2*3} {10/3} {\"test\" * 2}\"f;",
+    )
     .unwrap();
   let res = interpret(&temp, "main", blank());
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "String(test6 3 testtest)");
+  assert_eq!(
+    format!("{:?}", res.ok().unwrap()),
+    "String(test6 3 testtest)"
+  );
 }
 
 // Tests pattern matching code specifically
@@ -161,29 +176,32 @@ fn test_pattern_match() {
 #[test]
 fn test_args() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#one x -> x + 1;#main\none(2);")
+    .parse(&ParserState::new(), "#one x -> x + 1;#main\none(2);")
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Int(3)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(3)");
 }
 
 // Tests teh pattern match functionality
 #[test]
 fn test_pattern_match_func() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#main (x, 1) -> x - 1; (x, y) -> x + y;x -> x + 1; ")
+    .parse(
+      &ParserState::new(),
+      "#main (x, 1) -> x - 1; (x, y) -> x + y;x -> x + 1; ",
+    )
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Int(1));
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Int(2)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(2)");
 
   let res = interpret(
     &temp,
@@ -191,7 +209,7 @@ fn test_pattern_match_func() {
     InterpretVal::Tuple(vec![InterpretVal::Int(4), InterpretVal::Int(1)]),
   );
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Int(3)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(3)");
 
   let res = interpret(
     &temp,
@@ -199,90 +217,98 @@ fn test_pattern_match_func() {
     InterpretVal::Tuple(vec![InterpretVal::Int(4), InterpretVal::Int(2)]),
   );
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Int(6)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(6)");
 }
 
 // Tests teh equality operator
 #[test]
 fn test_eq() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#one x -> x == 1;#main\none(1);")
+    .parse(&ParserState::new(), "#one x -> x == 1;#main\none(1);")
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Bool(true)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Bool(true)");
 
   let temp = TemplateParser::new()
-    .parse("#one x -> x == (1, 2); #main\none(1, 2);")
+    .parse(
+      &ParserState::new(),
+      "#one x -> x == (1, 2); #main\none(1, 2);",
+    )
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Bool(true)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Bool(true)");
 
   let temp = TemplateParser::new()
-    .parse("#one x -> x == (1, 2); #main\none(1, 3);")
+    .parse(
+      &ParserState::new(),
+      "#one x -> x == (1, 2); #main\none(1, 3);",
+    )
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Bool(false)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Bool(false)");
 }
 
 // Tests pattern guards
 #[test]
 fn test_guards() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#main\nx -> 2|x==3;y -> 5;")
+    .parse(&ParserState::new(), "#main\nx -> 2|x==3;y -> 5;")
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Int(2));
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Int(5)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(5)");
 
   let res = interpret(&temp, "main", InterpretVal::Int(3));
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "Int(2)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(2)");
 }
 
 // Tests string escape sequences
 #[test]
 fn test_escapes() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#main\n\"\\{\\}\\\\\";")
+    .parse(&ParserState::new(), "#main\n\"\\{\\}\\\\\";")
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "String({}\\)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "String({}\\)");
 
   let temp = TemplateParser::new()
-    .parse("#main\nx -> f\"\\{\\} {x} \\\\\"f;")
+    .parse(&ParserState::new(), "#main\nx -> f\"\\{\\} {x} \\\\\"f;")
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Int(5));
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.ok().unwrap()), "String({} 5 \\)");
+  assert_eq!(format!("{:?}", res.ok().unwrap()), "String({} 5 \\)");
 }
 
 // Tests that errors capture location successfully and the error is correct
 #[test]
 fn test_error() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
-  let temp = TemplateParser::new().parse("#main\n 5 + \"hi\";").unwrap();
+  let temp = TemplateParser::new()
+    .parse(&ParserState::new(), "#main\n 5 + \"hi\";")
+    .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
   // println!("{:?}", res);
   assert!(res.is_err());
@@ -292,14 +318,14 @@ fn test_error() {
   );
 }
 
-// Tests that builtin functions work at all and further that the list funciton works
+// Tests that builtin functions work at all and further that the list function works
 #[test]
 fn test_builtin() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#main\nget(list(1, 4, 9, 11), 2);")
+    .parse(&ParserState::new(), "#main\nget(list(1, 4, 9, 11), 2);")
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
   // println!("{:?}", res);
@@ -307,7 +333,7 @@ fn test_builtin() {
   assert_eq!(format!("{:?}", res.unwrap()), "Int(9)");
 
   let temp = TemplateParser::new()
-    .parse("#main\nget(list(1, 4), 2);")
+    .parse(&ParserState::new(), "#main\nget(list(1, 4), 2);")
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
   // println!("{:?}", res);
@@ -328,10 +354,10 @@ fn test_builtin() {
 #[test]
 fn test_map() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#main\n x -> map(x, |i => i + 1|);")
+    .parse(&ParserState::new(), "#main\n x -> map(x, |i => i + 1|);")
     .unwrap();
   let res = interpret(
     &temp,
@@ -345,7 +371,7 @@ fn test_map() {
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(
-    format!("{}", res.unwrap()),
+    format!("{:?}", res.unwrap()),
     "List(Int(4), Int(124), Int(-122))"
   );
 }
@@ -354,10 +380,13 @@ fn test_map() {
 #[test]
 fn test_filter() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#main\n x -> filter(x, |i => i % 3 == 0|);")
+    .parse(
+      &ParserState::new(),
+      "#main\n x -> filter(x, |i => i % 3 == 0|);",
+    )
     .unwrap();
   let res = interpret(
     &temp,
@@ -376,18 +405,20 @@ fn test_filter() {
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(
-    format!("{}", res.unwrap()),
+    format!("{:?}", res.unwrap()),
     "List(Int(3), Int(6), Int(12), Int(1236))"
   );
 }
 
-// Tests the builtin len funciton
+// Tests the builtin len function
 #[test]
 fn test_length() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
-  let temp = TemplateParser::new().parse("#main\n x -> len(x);").unwrap();
+  let temp = TemplateParser::new()
+    .parse(&ParserState::new(), "#main\n x -> len(x);")
+    .unwrap();
   let res = interpret(
     &temp,
     "main",
@@ -404,17 +435,20 @@ fn test_length() {
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.unwrap()), "Int(8)");
+  assert_eq!(format!("{:?}", res.unwrap()), "Int(8)");
 }
 
 // Tests the builtin any function
 #[test]
 fn test_any() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#main\n x -> any(x, |i => i % 3 == 0|);")
+    .parse(
+      &ParserState::new(),
+      "#main\n x -> any(x, |i => i % 3 == 0|);",
+    )
     .unwrap();
   let res = interpret(
     &temp,
@@ -432,10 +466,13 @@ fn test_any() {
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.unwrap()), "Bool(true)");
+  assert_eq!(format!("{:?}", res.unwrap()), "Bool(true)");
 
   let temp = TemplateParser::new()
-    .parse("#main\n x -> any(x, |i => i % 3 == 0|);")
+    .parse(
+      &ParserState::new(),
+      "#main\n x -> any(x, |i => i % 3 == 0|);",
+    )
     .unwrap();
   let res = interpret(
     &temp,
@@ -449,17 +486,20 @@ fn test_any() {
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.unwrap()), "Bool(false)");
+  assert_eq!(format!("{:?}", res.unwrap()), "Bool(false)");
 }
 
 // Tests the builtin all function
 #[test]
 fn test_all() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#main\n x -> all(x, |i => i % 3 == 0|);")
+    .parse(
+      &ParserState::new(),
+      "#main\n x -> all(x, |i => i % 3 == 0|);",
+    )
     .unwrap();
   let res = interpret(
     &temp,
@@ -477,10 +517,13 @@ fn test_all() {
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.unwrap()), "Bool(false)");
+  assert_eq!(format!("{:?}", res.unwrap()), "Bool(false)");
 
   let temp = TemplateParser::new()
-    .parse("#main\n x -> all(x, |i => i % 3 == 0|);")
+    .parse(
+      &ParserState::new(),
+      "#main\n x -> all(x, |i => i % 3 == 0|);",
+    )
     .unwrap();
   let res = interpret(
     &temp,
@@ -494,17 +537,20 @@ fn test_all() {
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.unwrap()), "Bool(true)");
+  assert_eq!(format!("{:?}", res.unwrap()), "Bool(true)");
 }
 
 // Tests the builtin fold function
 #[test]
 fn test_fold() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#main\n x -> fold(x, 0, |a, i => a + i|);")
+    .parse(
+      &ParserState::new(),
+      "#main\n x -> fold(x, 0, |a, i => a + i|);",
+    )
     .unwrap();
   let res = interpret(
     &temp,
@@ -522,20 +568,23 @@ fn test_fold() {
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.unwrap()), "Int(2516)");
+  assert_eq!(format!("{:?}", res.unwrap()), "Int(2516)");
 }
 
 // Tests closures and environment capture
 #[test]
 fn test_closure() {
   use crate::interpreter::interpret;
-  use crate::TemplateParser;
+  use crate::{ParserState, TemplateParser};
 
   let temp = TemplateParser::new()
-    .parse("#closure y -> |a => a + y|; #main\n x -> closure(3)(x);")
+    .parse(
+      &ParserState::new(),
+      "#closure y -> |a => a + y|; #main\n x -> closure(3)(x);",
+    )
     .unwrap();
   let res = interpret(&temp, "main", InterpretVal::Int(5));
-  println!("{:?}", res);
+  // println!("{:?}", res);
   assert!(res.is_ok());
-  assert_eq!(format!("{}", res.unwrap()), "Int(8)");
+  assert_eq!(format!("{:?}", res.unwrap()), "Int(8)");
 }
