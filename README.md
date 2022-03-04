@@ -64,7 +64,6 @@
 #### API:
 
 - [ ] Continue Docs
-- [ ] Quick test
 
 #### Language:
 
