@@ -12,6 +12,9 @@
 - [x] String interpolation
 - [x] Multi line string interpolation
 - [x] Lambdas
+- [x] Parse time errors
+- [ ] Underscores parse time error stuff
+- [x] Move string escaping to lalrpop
 
 ### Interpreter:
 
@@ -47,7 +50,6 @@
 - [ ] Extra functions
 - [ ] Extra operators
 - [ ] Extra types
-- [ ] Move string escaping to lalrpop
 
 ### API:
 
@@ -57,3 +59,12 @@
 - [x] Flesh out return types
 - [ ] Adding extra builtin functions, types, and operators
 
+### Documentation
+
+#### API:
+
+- [ ] Continue Docs
+
+#### Language:
+
+- [ ] Work out format for language documentation

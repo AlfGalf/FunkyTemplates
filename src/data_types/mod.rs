@@ -45,19 +45,21 @@ pub enum InterpretVal {
   Lambda(Pattern, Frame),
 }
 
-impl InterpretVal {
+impl ToString for InterpretVal {
   // Used to convert values into strings for when they are added in interpolation strings
-  pub fn print(&self) -> String {
+  fn to_string(&self) -> String {
     match self {
       InterpretVal::Int(i) => i.to_string(),
       InterpretVal::String(s) => s.to_string(),
       InterpretVal::Bool(t) => t.to_string(),
-      InterpretVal::Tuple(t) => format!("({})", t.iter().map(|v| v.print()).join(", ")),
-      InterpretVal::List(t) => format!("[{}]", t.iter().map(|v| v.print()).join(", ")),
+      InterpretVal::Tuple(t) => format!("({})", t.iter().map(|v| v.to_string()).join(", ")),
+      InterpretVal::List(t) => format!("[{}]", t.iter().map(|v| v.to_string()).join(", ")),
       _ => panic!("Type not found"),
     }
   }
+}
 
+impl InterpretVal {
   // Unwraps a tuple of length 1 to its enclosed value
   pub fn unwrap_tuple(self) -> InterpretVal {
     if let InterpretVal::Tuple(s) = self {
@@ -83,7 +85,9 @@ impl InterpretVal {
   // Adds two interpret values together
   pub fn add_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
     match (self, v) {
-      (InterpretVal::String(l), r) => Ok(InterpretVal::String(l.clone().add(r.print().as_str()))),
+      (InterpretVal::String(l), r) => {
+        Ok(InterpretVal::String(l.clone().add(r.to_string().as_str())))
+      }
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l + r)),
       (l, r) => Err(InterpretError::new(
         format!("Add operator not defined for {:?} + {:?}.", l, r).as_str(),
