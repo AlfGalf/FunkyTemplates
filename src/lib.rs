@@ -2,14 +2,16 @@ extern crate core;
 #[macro_use]
 extern crate lalrpop_util;
 
-use std::collections::HashSet;
+use std::cmp;
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
 use itertools::Itertools;
+use lalrpop_util::ParseError;
 
 use crate::ast::{ParserState, Template};
 use crate::data_types::{InterpretError, InterpretVal};
-use crate::external_operators::CustomOperator;
+use crate::external_operators::{CustomOperator, OperatorChars};
 use crate::interpreter::interpret;
 use crate::parser::language_definition::TemplateParser;
 
@@ -23,14 +25,16 @@ pub mod external_operators;
 
 /// Represents a language to be parsed
 pub struct Language {
-  operators: HashSet<CustomOperator>,
+  unary_operators: HashMap<OperatorChars, CustomOperator>,
+  binary_operators: HashMap<OperatorChars, CustomOperator>,
 }
 
 /// Represents a set of template functions
 pub struct ParsedTemplate {
   lang: String,
   temp: Template,
-  operators: HashSet<CustomOperator>,
+  unary_operators: HashMap<OperatorChars, CustomOperator>,
+  binary_operators: HashMap<OperatorChars, CustomOperator>,
 }
 
 /// Represents an argument being parsed in to a function call
@@ -49,6 +53,60 @@ pub struct LangFunc<'a> {
   text: String,
 }
 
+impl Default for Language {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+impl Language {
+  pub fn new() -> Self {
+    Self {
+      unary_operators: Default::default(),
+      binary_operators: Default::default(),
+    }
+  }
+
+  pub fn add_bin_op(&self, char: OperatorChars, op: CustomOperator) -> &Self {
+    todo!()
+  }
+
+  pub fn add_unary_op(&self, char: OperatorChars, op: CustomOperator) -> &Self {
+    todo!()
+  }
+
+  pub fn add_custom_type(&self) -> &Self {
+    todo!()
+  }
+
+  pub fn add_custom_function(&self) -> &Self {
+    todo!()
+  }
+
+  pub fn parse(&self, code: String) -> Result<ParsedTemplate, LanguageErr> {
+    let parser = TemplateParser::new();
+    let parser_state = ParserState {
+      unary_ops: self.unary_operators.keys().cloned().collect(),
+      binary_ops: self.binary_operators.keys().cloned().collect(),
+    };
+    let res: Result<Template, ParseError<usize, _, (usize, String, usize)>> =
+      parser.parse(&parser_state, &code);
+
+    match res {
+      Ok(l) => Ok(ParsedTemplate {
+        temp: l,
+        lang: code,
+        unary_operators: self.unary_operators.clone(),
+        binary_operators: self.binary_operators.clone(),
+      }),
+      Err(e) => Err(LanguageErr::new_from_parser_err(
+        e.map_token(|_| "".to_string()),
+        code,
+      )),
+    }
+  }
+}
+
 impl ParsedTemplate {
   /// Builds a language from a code string
   ///
@@ -64,11 +122,15 @@ impl ParsedTemplate {
       Ok(l) => Ok(Self {
         temp: l,
         lang: lang.to_string(),
-        operators: HashSet::new(),
+        unary_operators: Default::default(),
+        binary_operators: Default::default(),
       }),
       Err(e) => {
         // println!("{}", e);
-        Err(LanguageErr::new_no_loc(format!("Parsing error: {}", e)))
+        Err(LanguageErr::new_from_parser_err(
+          e.map_token(|_| "".to_string()),
+          lang.to_string(),
+        ))
       }
     }
   }
@@ -159,7 +221,7 @@ impl<'a> LangFunc<'a> {
         InterpretVal::Tuple(vec![]),
       )
     }
-    .map_err(|e| LanguageErr::from_int_err(e, self.text.clone()))
+    .map_err(|e| LanguageErr::new_from_int_err(e, self.text.clone()))
   }
 }
 
@@ -167,6 +229,7 @@ impl<'a> LangFunc<'a> {
 pub struct LocationLangErr {
   message: String,
   lines: (usize, usize),
+  char: (usize, usize),
   section: String,
 }
 
@@ -180,21 +243,12 @@ impl LanguageErr {
   /// Creates a language error with location information
   /// Adds in the original language string so the line numbers and string section can be found
   fn new_loc(message: String, location: (usize, usize), lang: String) -> Self {
-    let lines_to_start = lang[0..location.0]
-      .as_bytes()
-      .iter()
-      .filter(|&&c| c == b'\n')
-      .count();
-    let lines_to_end = lines_to_start
-      + lang[location.0..location.1]
-        .as_bytes()
-        .iter()
-        .filter(|&&c| c == b'\n')
-        .count();
-
+    let (start_line, start_char) = get_lang_pos(&lang, location.0);
+    let (end_line, end_char) = get_lang_pos(&lang, location.1);
     LanguageErr::Loc(LocationLangErr {
-      lines: (lines_to_start, lines_to_end),
+      lines: (start_line, end_line),
       section: lang[location.0..location.1].to_string(),
+      char: (start_char, end_char),
       message,
     })
   }
@@ -205,13 +259,86 @@ impl LanguageErr {
   }
 
   /// Creates a location error from an interpretation error
-  fn from_int_err(err: InterpretError, lang: String) -> Self {
+  fn new_from_int_err(err: InterpretError, lang: String) -> Self {
     if err.location.is_some() {
       Self::new_loc(err.message, err.location.unwrap(), lang)
     } else {
       Self::new_no_loc(err.message)
     }
   }
+
+  /// Creates a location error from a parser error
+  fn new_from_parser_err(
+    err: ParseError<usize, String, (usize, String, usize)>,
+    lang: String,
+  ) -> Self {
+    match err {
+      ParseError::InvalidToken { location } => {
+        let (line, char) = get_lang_pos(&lang, location);
+        Self::Loc(LocationLangErr {
+          message: "Invalid token".to_string(),
+          lines: (line, line),
+          char: (char, char),
+          section: lang[location..location + 10].to_string(),
+        })
+      }
+      ParseError::UnrecognizedEOF { location, .. } => {
+        let (line, char) = get_lang_pos(&lang, location);
+        Self::Loc(LocationLangErr {
+          message: "Unexpected End of File".to_string(),
+          lines: (line, line),
+          char: (char, char),
+          section: lang[cmp::min(location - 10, 0)..].to_string(),
+        })
+      }
+      ParseError::UnrecognizedToken {
+        token: (l, t, r), ..
+      } => {
+        let (start_line, start_char) = get_lang_pos(&lang, l);
+        let (end_line, end_char) = get_lang_pos(&lang, r);
+        Self::Loc(LocationLangErr {
+          message: "Unrecognised token".to_string(),
+          lines: (start_line, end_line),
+          char: (start_char, end_char),
+          section: lang[l..r].to_string(),
+        })
+      }
+      ParseError::ExtraToken {
+        token: (l, t, r), ..
+      } => {
+        let (start_line, start_char) = get_lang_pos(&lang, l);
+        let (end_line, end_char) = get_lang_pos(&lang, r);
+        Self::Loc(LocationLangErr {
+          message: "Extra token".to_string(),
+          lines: (start_line, end_line),
+          char: (start_char, end_char),
+          section: lang[l..r].to_string(),
+        })
+      }
+      ParseError::User { error: (l, m, r) } => {
+        let (start_line, start_char) = get_lang_pos(&lang, l);
+        let (end_line, end_char) = get_lang_pos(&lang, r);
+        Self::Loc(LocationLangErr {
+          message: m,
+          lines: (start_line, end_line),
+          char: (start_char, end_char),
+          section: lang[l..r].to_string(),
+        })
+      }
+    }
+  }
+}
+
+fn get_lang_pos(lang: &str, pos: usize) -> (usize, usize) {
+  let new_lines = lang[0..pos]
+    .as_bytes()
+    .iter()
+    .enumerate()
+    .filter(|(_, c)| **c == b'\n');
+  let line_num = new_lines.clone().count();
+  let char = pos - new_lines.last().unwrap_or((0, &b'x')).0;
+
+  (line_num, char)
 }
 
 impl Debug for LanguageErr {
@@ -220,10 +347,12 @@ impl Debug for LanguageErr {
       LanguageErr::Loc(l) => {
         write!(
           fmt,
-          "Error: \"{}\"\nAt lines: {} - {}\nCode: `{}`",
+          "Error: \"{}\"\nAt lines: {}:{} - {}:{}\nCode: `{}`",
           l.message,
           l.lines.0 + 1,
+          l.char.0,
           l.lines.1 + 1,
+          l.char.1,
           l.section
         )
       }

@@ -15,6 +15,7 @@
 - [x] Parse time errors
 - [ ] Underscores parse time error stuff
 - [x] Move string escaping to lalrpop
+- [x] Use parser errors better
 
 ### Interpreter:
 

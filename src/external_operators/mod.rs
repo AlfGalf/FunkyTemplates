@@ -15,6 +15,7 @@ pub enum OperatorChars {
 
 pub struct CustomFunction {}
 
+#[derive(Clone)]
 pub struct CustomOperator {
   operator: OperatorChars,
   function: fn(ReturnVal, ReturnVal) -> Result<Argument, Box<dyn ToString>>,
