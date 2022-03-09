@@ -341,12 +341,12 @@ fn test_builtin() {
   assert_eq!(
     format!(
       "{:?}",
-      crate::LanguageErr::from_int_err(
+      crate::LanguageErr::new_from_int_err(
         res.err().unwrap(),
         "#main\nget(list(1, 4), 2);".to_string(),
       )
     ),
-    "Error: \"Index out of range.\"\nAt lines: 2 - 2\nCode: `get(list(1, 4), 2)`"
+    "Error: \"Index out of range.\"\nAt lines: 2:1 - 2:19\nCode: `get(list(1, 4), 2)`"
   );
 }
 

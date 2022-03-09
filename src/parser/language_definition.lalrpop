@@ -9,7 +9,7 @@ use lalrpop_util::ParseError;
 grammar<'ast>(state: &'ast ParserState);
 
 extern {
-    type Error = String;
+    type Error = (usize, String, usize);
 }
 
 // Helpers
@@ -70,18 +70,18 @@ pub Guard: Guard = {
 
 // Non interpolated strings
 pub StringTerm: String = {
-    <s: r#""[^"]*""#> =>? process_string(&s[1..s.len()-1]).map_err(|s| ParseError::User {error: s}),
+    <l:@L> <s:r#""[^"]*""#> <r:@R> =>? process_string(&s[1..s.len()-1]).map_err(|s| ParseError::User {error: (l, s, r)}),
 };
 
 // Interpolated strings initial part
 StringInt: Vec<InterpolationPart> = {
-    <s: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> =>? Ok(vec![InterpolationPart::String(process_string(&s[2..s.len()-2]).map_err(|s| ParseError::User {error: s})?)]),
-    <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <mut si: StringIntMid> <s2: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> =>? Ok({
+    <l:@L> <s: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> <r: @R> =>? Ok(vec![InterpolationPart::String(process_string(&s[2..s.len()-2]).map_err(|s| ParseError::User {error: (l, s, r)})?)]),
+    <l1:@L> <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <r1: @R> <mut si: StringIntMid> <l2: @L> <s2: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> <r2: @R> =>? Ok({
         si.insert(0, InterpolationPart::String(
-            process_string(&s1[2..s1.len()-1]).map_err(|s| ParseError::User {error: s})?
+            process_string(&s1[2..s1.len()-1]).map_err(|s| ParseError::User {error: (l1, s, r1)})?
         ));
         si.push(InterpolationPart::String(
-            process_string(&s2[1..s2.len()-2]).map_err(|s| ParseError::User {error: s})?
+            process_string(&s2[1..s2.len()-2]).map_err(|s| ParseError::User {error: (l2, s, r2)})?
         ));
         si
     }),
@@ -90,9 +90,9 @@ StringInt: Vec<InterpolationPart> = {
 // Central sections within an interpolation string
 StringIntMid: Vec<InterpolationPart> = {
     Expr => vec![InterpolationPart::Expr(<>)],
-    <mut si: StringIntMid> <s: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <e: Expr> =>? Ok({
+    <mut si: StringIntMid> <l: @L> <s: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <r: @R> <e: Expr> =>? Ok({
         si.push(InterpolationPart::String(
-            process_string(&s[1..s.len()-1]).map_err(|s| ParseError::User {error: s})?
+            process_string(&s[1..s.len()-1]).map_err(|s| ParseError::User {error: (l, s, r)})?
         ));
         si.push(InterpolationPart::Expr(e));
         si
@@ -190,7 +190,7 @@ CustomBinOp: Expr = {
         if state.binary_ops.contains(&o) {
             Ok(Expr::custom_op(<>))
         } else {
-            Err(ParseError::User { error: "This binary operator is not defined".to_string() })
+            Err(ParseError::User { error: (l, "This binary operator is not defined".to_string(), r) })
         }
     },
     CustomUnaryOp,
@@ -202,7 +202,7 @@ CustomUnaryOp: Expr = {
         if state.unary_ops.contains(&o) {
             Ok(Expr::custom_unary(<>))
         } else {
-            Err(ParseError::User { error: "This unary operator is not defined".to_string() })
+            Err(ParseError::User { error: (l, "This unary operator is not defined".to_string(), r) })
         }
     },
     UnaryExpr,
