@@ -211,8 +211,10 @@ impl Debug for Expr {
           .join(" + ")
       ),
       ExprInner::Lambda(ref p) => write!(fmt, "|{:?}|", p),
-      ExprInner::CustomBinOp(_, _, _) => todo!(),
-      ExprInner::CustomUnaryOp(_, _) => todo!(),
+      ExprInner::CustomBinOp(ref l, ref o, ref r) => {
+        write!(fmt, "CustomOp({:?} {} {:?})", l, o.to_string(), r)
+      }
+      ExprInner::CustomUnaryOp(ref o, ref r) => write!(fmt, "CustomOp({} {:?})", o.to_string(), r),
     }
   }
 }

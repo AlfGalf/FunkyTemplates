@@ -424,3 +424,68 @@ test -> 6;";
     );
   }
 }
+
+// Test for parsing with custom binary operators
+#[test]
+fn test_custom_bin_operators() {
+  use crate::parser::language_definition;
+  use crate::OperatorChars;
+  use crate::ParserState;
+
+  let test_str = "\
+#main
+(a, b) -> a ? b;
+";
+
+  let parser = language_definition::TemplateParser::new();
+  let res_1 = parser.parse(&ParserState::new(), test_str);
+  assert!(res_1.is_err());
+  assert_eq!(
+    format!("{:?}", res_1),
+    "Err(User { error: (16, \"This binary operator is not defined\", 21) })"
+  );
+
+  let res_2 = parser.parse(
+    &ParserState {
+      unary_ops: vec![],
+      binary_ops: vec![OperatorChars::QuestionMark],
+    },
+    test_str,
+  );
+  assert!(res_2.is_ok());
+  assert_eq!(
+    format!("{:?}", res_2),
+    "Ok(#main {a, b} -> CustomOp(a ? b))"
+  )
+}
+
+// Test for parsing with custom unary operators
+#[test]
+fn test_custom_unary_operators() {
+  use crate::parser::language_definition;
+  use crate::OperatorChars;
+  use crate::ParserState;
+
+  let test_str = "\
+#main
+a -> ?a;
+";
+
+  let parser = language_definition::TemplateParser::new();
+  let res_1 = parser.parse(&ParserState::new(), test_str);
+  assert!(res_1.is_err());
+  assert_eq!(
+    format!("{:?}", res_1),
+    "Err(User { error: (11, \"This unary operator is not defined\", 13) })"
+  );
+
+  let res_2 = parser.parse(
+    &ParserState {
+      unary_ops: vec![OperatorChars::QuestionMark],
+      binary_ops: vec![],
+    },
+    test_str,
+  );
+  assert!(res_2.is_ok());
+  assert_eq!(format!("{:?}", res_2), "Ok(#main a -> CustomOp(? a))")
+}

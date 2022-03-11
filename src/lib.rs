@@ -11,8 +11,8 @@ use lalrpop_util::ParseError;
 
 use crate::ast::{ParserState, Template};
 use crate::data_types::{InterpretError, InterpretVal};
-use crate::external_operators::{CustomOperator, OperatorChars};
-use crate::interpreter::interpret;
+use crate::external_operators::{CustBinOp, OperatorChars};
+use crate::interpreter::{interpret, CustomOps};
 use crate::parser::language_definition::TemplateParser;
 
 mod ast;
@@ -25,19 +25,20 @@ pub mod external_operators;
 
 /// Represents a language to be parsed
 pub struct Language {
-  unary_operators: HashMap<OperatorChars, CustomOperator>,
-  binary_operators: HashMap<OperatorChars, CustomOperator>,
+  unary_operators: HashMap<OperatorChars, CustBinOp>,
+  binary_operators: HashMap<OperatorChars, CustBinOp>,
 }
 
 /// Represents a set of template functions
 pub struct ParsedTemplate {
   lang: String,
   temp: Template,
-  unary_operators: HashMap<OperatorChars, CustomOperator>,
-  binary_operators: HashMap<OperatorChars, CustomOperator>,
+  unary_operators: HashMap<OperatorChars, CustBinOp>,
+  binary_operators: HashMap<OperatorChars, CustBinOp>,
 }
 
 /// Represents an argument being parsed in to a function call
+#[derive(Clone)]
 pub enum Argument {
   Int(i32),
   String(String),
@@ -67,12 +68,14 @@ impl Language {
     }
   }
 
-  pub fn add_bin_op(&self, char: OperatorChars, op: CustomOperator) -> &Self {
-    todo!()
+  pub fn add_bin_op(&mut self, char: OperatorChars, op: CustBinOp) -> &Self {
+    self.binary_operators.entry(char).or_insert(op);
+    self
   }
 
-  pub fn add_unary_op(&self, char: OperatorChars, op: CustomOperator) -> &Self {
-    todo!()
+  pub fn add_unary_op(&mut self, char: OperatorChars, op: CustBinOp) -> &Self {
+    self.unary_operators.entry(char).or_insert(op);
+    self
   }
 
   pub fn add_custom_type(&self) -> &Self {
@@ -213,12 +216,14 @@ impl<'a> LangFunc<'a> {
         &self.lang.temp,
         self.name.as_str(),
         InterpretVal::from_arg(x),
+        &CustomOps::new_from_hash(Default::default(), Default::default()),
       )
     } else {
       interpret(
         &self.lang.temp,
         self.name.as_str(),
         InterpretVal::Tuple(vec![]),
+        &CustomOps::new_from_hash(Default::default(), Default::default()),
       )
     }
     .map_err(|e| LanguageErr::new_from_int_err(e, self.text.clone()))

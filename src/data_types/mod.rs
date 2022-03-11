@@ -7,7 +7,7 @@ use std::ops::Add;
 use itertools::Itertools;
 
 use crate::ast::Pattern;
-use crate::{Argument, Template};
+use crate::{Argument, ReturnVal, Template};
 
 // Errors from the interpreter, can optionally have location information added
 #[derive(Clone)]
@@ -234,6 +234,31 @@ impl InterpretVal {
       (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(InterpretVal::Bool(*l || *r)),
       (l, r) => Err(InterpretError::new(
         format!("And operator not supported for {:?} && {:?}.", l, r).as_str(),
+      )),
+    }
+  }
+
+  // Converts an interpret value to a return val that can be returned through the API
+  pub fn to_return_val(&self) -> Result<ReturnVal, InterpretError> {
+    match self {
+      InterpretVal::Int(i) => Ok(ReturnVal::Int(*i)),
+      InterpretVal::Bool(b) => Ok(ReturnVal::Bool(*b)),
+      InterpretVal::String(s) => Ok(ReturnVal::String(s.clone())),
+      InterpretVal::Tuple(v) => Ok(ReturnVal::Tuple(
+        v.iter()
+          .map(|x| x.to_return_val())
+          .collect::<Result<Vec<ReturnVal>, InterpretError>>()?,
+      )),
+      InterpretVal::List(v) => Ok(ReturnVal::List(
+        v.iter()
+          .map(|x| x.to_return_val())
+          .collect::<Result<Vec<ReturnVal>, InterpretError>>()?,
+      )),
+      InterpretVal::Function(_) => Err(InterpretError::new(
+        "Cannot have function return type to root.",
+      )),
+      InterpretVal::Lambda(_, _) => Err(InterpretError::new(
+        "Cannot have lambda return type to root.",
       )),
     }
   }

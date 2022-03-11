@@ -49,7 +49,7 @@
   - [X] Fold
   - [X] Length
 - [ ] Extra functions
-- [ ] Extra operators
+- [x] Extra operators
 - [ ] Extra types
 
 ### API:
@@ -58,7 +58,7 @@
 - [x] Define API
 - [x] Adding arguments
 - [x] Flesh out return types
-- [ ] Adding extra builtin functions, types, and operators
+- [x] Adding extra builtin functions, types, and operators
 
 ### Documentation
 

@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::collections::HashMap;
 use std::ops::Add;
 
 use itertools::Itertools;
@@ -6,22 +7,47 @@ use itertools::Itertools;
 use crate::ast::*;
 use crate::data_types::*;
 use crate::interpreter::builtins::built_in;
-use crate::ReturnVal;
+use crate::{CustBinOp, OperatorChars, ReturnVal};
 
 mod builtins;
 mod test;
+
+pub struct CustomOps {
+  bin_ops: HashMap<OperatorChars, CustBinOp>,
+  unary_ops: HashMap<OperatorChars, CustBinOp>,
+}
+
+impl CustomOps {
+  fn new() -> Self {
+    Self {
+      bin_ops: Default::default(),
+      unary_ops: Default::default(),
+    }
+  }
+
+  pub fn new_from_hash(
+    bin: HashMap<OperatorChars, CustBinOp>,
+    unary: HashMap<OperatorChars, CustBinOp>,
+  ) -> Self {
+    Self {
+      bin_ops: bin,
+      unary_ops: unary,
+    }
+  }
+}
 
 // Interprets a specific top-level function in a template
 pub fn interpret(
   temp: &Template,
   name: &str,
   arg: InterpretVal,
+  customs: &CustomOps,
 ) -> Result<ReturnVal, InterpretError> {
   let res = {
     let frame = Frame::from_template(temp);
     if let Ok(func) = frame.find(name) {
       if let InterpretVal::Function(p) = func {
-        interpret_function(&p, &mut Frame::from_template(temp), arg)
+        interpret_function(&p, &mut Frame::from_template(temp), arg, customs)
       } else {
         panic!("Should be impossible to have top level expr with non function expr");
       }
@@ -32,43 +58,22 @@ pub fn interpret(
     }
   }?;
 
-  interpret_val_to_return(&res)
-}
-
-// Converts an interpret value to a return val that can be returned through the API
-fn interpret_val_to_return(i: &InterpretVal) -> Result<ReturnVal, InterpretError> {
-  match i {
-    InterpretVal::Int(i) => Ok(ReturnVal::Int(*i)),
-    InterpretVal::Bool(b) => Ok(ReturnVal::Bool(*b)),
-    InterpretVal::String(s) => Ok(ReturnVal::String(s.clone())),
-    InterpretVal::Tuple(v) => Ok(ReturnVal::Tuple(
-      v.iter()
-        .map(interpret_val_to_return)
-        .collect::<Result<Vec<ReturnVal>, InterpretError>>()?,
-    )),
-    InterpretVal::List(v) => Ok(ReturnVal::List(
-      v.iter()
-        .map(interpret_val_to_return)
-        .collect::<Result<Vec<ReturnVal>, InterpretError>>()?,
-    )),
-    InterpretVal::Function(_) => Err(InterpretError::new(
-      "Cannot have function return type to root.",
-    )),
-    InterpretVal::Lambda(_, _) => Err(InterpretError::new(
-      "Cannot have lambda return type to root.",
-    )),
-  }
+  res.to_return_val()
 }
 
 // Recursive function for evaluating an expression
-fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, InterpretError> {
+fn interpret_recurse(
+  expr: &Expr,
+  env: &mut Frame,
+  customs: &CustomOps,
+) -> Result<InterpretVal, InterpretError> {
   use crate::ast::ExprInner::*;
   match &expr.val {
     Str(s) => Ok(InterpretVal::String(s.to_string())),
     Number(n) => Ok(InterpretVal::Int(*n)),
     Unary(o, e) => match o {
       UnaryOp::Not => {
-        let res = interpret_recurse(&*e, env)?;
+        let res = interpret_recurse(&*e, env, customs)?;
         if let InterpretVal::Bool(e) = res {
           Ok(InterpretVal::Bool(!e))
         } else {
@@ -78,7 +83,7 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
         }
       }
       UnaryOp::Neg => {
-        let res = interpret_recurse(&*e, env)?;
+        let res = interpret_recurse(&*e, env, customs)?;
         if let InterpretVal::Int(i) = res {
           Ok(InterpretVal::Int(-i))
         } else {
@@ -89,20 +94,20 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
       }
     },
     FuncCall(f, a) => {
-      let arg = interpret_recurse(a, env)?;
+      let arg = interpret_recurse(a, env, customs)?;
       {
         if let ExprInner::Var(n) = f.val.clone() {
-          built_in(n, arg.clone(), env)
+          built_in(n, arg.clone(), env, customs)
         } else {
           None
         }
       }
       .unwrap_or_else(|| {
-        let val = interpret_recurse(f, env)?;
+        let val = interpret_recurse(f, env, customs)?;
 
         match val {
-          InterpretVal::Function(p) => interpret_function(&p, env, arg),
-          InterpretVal::Lambda(p, mut e) => interpret_lambda(p, &mut e, arg),
+          InterpretVal::Function(p) => interpret_function(&p, env, arg, customs),
+          InterpretVal::Lambda(p, mut e) => interpret_lambda(p, &mut e, arg, customs),
           _ => Err(InterpretError::new("Called value that is not a function.")),
         }
       })
@@ -112,18 +117,26 @@ fn interpret_recurse(expr: &Expr, env: &mut Frame) -> Result<InterpretVal, Inter
       vs.iter()
         .map(|p| match p {
           InterpolationPart::String(s) => Ok(s.to_string()),
-          InterpolationPart::Expr(e) => Ok(interpret_recurse(e, env)?.to_string()),
+          InterpolationPart::Expr(e) => Ok(interpret_recurse(e, env, customs)?.to_string()),
         })
         .fold_ok(String::new(), |s, p| s.add(p.as_str()))?,
     )),
-    Op(l, o, r) => eval_op(&*l, o, &*r, env),
+    Op(l, o, r) => eval_op(&*l, o, &*r, env, customs),
     Tuple(v) => Ok(InterpretVal::Tuple(
       v.iter()
-        .map(|e| interpret_recurse(e, env))
+        .map(|e| interpret_recurse(e, env, customs))
         .collect::<Result<Vec<InterpretVal>, InterpretError>>()?,
     )),
     Lambda(p) => Ok(InterpretVal::Lambda(*p.clone(), env.clone())),
-    CustomBinOp(_, _, _) => todo!(),
+    CustomBinOp(l, o, r) => {
+      // Operator must exist otherwise wouldn't parse, so okay to unwrap
+      let op = customs.bin_ops.get(o).unwrap();
+
+      let l = interpret_recurse(l, env, customs)?;
+      let r = interpret_recurse(r, env, customs)?;
+
+      op.call_func(&l, &r)
+    }
     CustomUnaryOp(_, _) => todo!(),
   }
   .map_err(|mut e| {
@@ -138,9 +151,10 @@ fn eval_op(
   op: &Opcode,
   r: &Expr,
   env: &mut Frame,
+  customs: &CustomOps,
 ) -> Result<InterpretVal, InterpretError> {
-  let left = interpret_recurse(l, env)?;
-  let right = interpret_recurse(r, env)?;
+  let left = interpret_recurse(l, env, customs)?;
+  let right = interpret_recurse(r, env, customs)?;
 
   match op {
     Opcode::Add => left.add_op(&right),
@@ -167,6 +181,7 @@ fn pattern_match(
   param: Expr,
   arg: InterpretVal,
   env: &mut Frame,
+  customs: &CustomOps,
 ) -> Result<Option<Frame>, InterpretError> {
   let mut res = Frame::new();
 
@@ -203,7 +218,7 @@ fn pattern_match(
         }
       }
       e => {
-        let res = interpret_recurse(&e, env)?;
+        let res = interpret_recurse(&e, env, customs)?;
         if !(res == cur_arg) {
           return Ok(None);
         }
@@ -220,19 +235,20 @@ fn interpret_function(
   func: &[Pattern],
   env: &mut Frame,
   arg: InterpretVal,
+  customs: &CustomOps,
 ) -> Result<InterpretVal, InterpretError> {
   for p in func {
-    if let Some(mut r) = pattern_match(p.start.clone(), arg.clone(), env)? {
+    if let Some(mut r) = pattern_match(p.start.clone(), arg.clone(), env, customs)? {
       if p
         .guards
         .iter()
         .map(|p| {
-          let res = interpret_recurse(p.expr.borrow(), &mut r)?;
+          let res = interpret_recurse(p.expr.borrow(), &mut r, customs)?;
           Ok(res == InterpretVal::Bool(true))
         })
         .fold_ok(true, |l, r| l && r)?
       {
-        return interpret_recurse(&p.result, &mut r);
+        return interpret_recurse(&p.result, &mut r, customs);
       }
     }
   }
@@ -245,10 +261,11 @@ fn interpret_lambda(
   func: Pattern,
   env: &mut Frame,
   arg: InterpretVal,
+  customs: &CustomOps,
 ) -> Result<InterpretVal, InterpretError> {
-  if let Some(mut r) = pattern_match(func.start, arg, env)? {
+  if let Some(mut r) = pattern_match(func.start, arg, env, customs)? {
     r.set_next(env);
-    interpret_recurse(&func.result, &mut r)
+    interpret_recurse(&func.result, &mut r, customs)
   } else {
     Err(InterpretError::new(
       "Lambda function did not match pattern.",

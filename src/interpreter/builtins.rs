@@ -1,4 +1,6 @@
-use crate::interpreter::{interpret_function, interpret_lambda, Frame};
+use std::thread::current;
+
+use crate::interpreter::{interpret_function, interpret_lambda, CustomOps, Frame};
 use crate::{InterpretError, InterpretVal};
 
 // Checks if the token refers to an inbuilt function
@@ -8,16 +10,17 @@ pub fn built_in(
   name: String,
   arg: InterpretVal,
   frame: &mut Frame,
+  customs: &CustomOps,
 ) -> Option<Result<InterpretVal, InterpretError>> {
   match name.as_str() {
     "list" => Some(list_func(arg)),
     "get" => Some(get_func(arg)),
-    "map" => Some(map_func(arg, frame)),
-    "filter" => Some(filter_func(arg, frame)),
+    "map" => Some(map_func(arg, frame, customs)),
+    "filter" => Some(filter_func(arg, frame, customs)),
     "len" => Some(length_func(arg)),
-    "any" => Some(any_func(arg, frame)),
-    "all" => Some(all_func(arg, frame)),
-    "fold" => Some(fold_func(arg, frame)),
+    "any" => Some(any_func(arg, frame, customs)),
+    "all" => Some(all_func(arg, frame, customs)),
+    "fold" => Some(fold_func(arg, frame, customs)),
     _ => None,
   }
 }
@@ -74,13 +77,17 @@ fn get_func(arg: InterpretVal) -> Result<InterpretVal, InterpretError> {
 }
 
 // Executes the builtin map function
-fn map_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, InterpretError> {
+fn map_func(
+  arg: InterpretVal,
+  frame: &mut Frame,
+  customs: &CustomOps,
+) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
       match (t.get(0).unwrap(), t.get(1).unwrap()) {
         (InterpretVal::List(v), InterpretVal::Function(f)) => Ok(InterpretVal::List(
           v.iter()
-            .map(|i| interpret_function(f, frame, i.clone()))
+            .map(|i| interpret_function(f, frame, i.clone(), customs))
             .collect::<Result<Vec<InterpretVal>, InterpretError>>()?,
         )),
         (InterpretVal::List(v), InterpretVal::Lambda(f, e)) => {
@@ -88,7 +95,7 @@ fn map_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, Interp
           env.set_next(frame);
           Ok(InterpretVal::List(
             v.iter()
-              .map(|i| interpret_lambda(f.clone(), &mut env, i.clone()))
+              .map(|i| interpret_lambda(f.clone(), &mut env, i.clone(), customs))
               .collect::<Result<Vec<InterpretVal>, InterpretError>>()?,
           ))
         }
@@ -114,14 +121,18 @@ fn map_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, Interp
 }
 
 // Executes the builtin filter function
-fn filter_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, InterpretError> {
+fn filter_func(
+  arg: InterpretVal,
+  frame: &mut Frame,
+  customs: &CustomOps,
+) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
       match (t.get(0).unwrap(), t.get(1).unwrap()) {
         (InterpretVal::List(v), InterpretVal::Function(f)) => Ok(InterpretVal::List(
           v.iter()
             .map(|v| {
-              if let InterpretVal::Bool(b) = interpret_function(f, frame, v.clone())? {
+              if let InterpretVal::Bool(b) = interpret_function(f, frame, v.clone(), customs)? {
                 Ok((v.clone(), b))
               } else {
                 Err(InterpretError::new("Filter function was not a bool."))
@@ -140,7 +151,9 @@ fn filter_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, Int
           Ok(InterpretVal::List(
             v.iter()
               .map(|v| {
-                if let InterpretVal::Bool(b) = interpret_lambda(f.clone(), &mut env, v.clone())? {
+                if let InterpretVal::Bool(b) =
+                  interpret_lambda(f.clone(), &mut env, v.clone(), customs)?
+                {
                   Ok((v.clone(), b))
                 } else {
                   Err(InterpretError::new("Filter function was not a bool."))
@@ -175,14 +188,18 @@ fn filter_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, Int
 }
 
 // Executes the builtin any function
-fn any_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, InterpretError> {
+fn any_func(
+  arg: InterpretVal,
+  frame: &mut Frame,
+  customs: &CustomOps,
+) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
       match (t.get(0).unwrap(), t.get(1).unwrap()) {
         (InterpretVal::List(v), InterpretVal::Function(f)) => Ok(InterpretVal::Bool(
           v.iter()
             .map(|v| {
-              if let InterpretVal::Bool(b) = interpret_function(f, frame, v.clone())? {
+              if let InterpretVal::Bool(b) = interpret_function(f, frame, v.clone(), customs)? {
                 Ok(b)
               } else {
                 Err(InterpretError::new("Any function result was not a bool."))
@@ -198,7 +215,9 @@ fn any_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, Interp
           Ok(InterpretVal::Bool(
             v.iter()
               .map(|v| {
-                if let InterpretVal::Bool(b) = interpret_lambda(f.clone(), &mut env, v.clone())? {
+                if let InterpretVal::Bool(b) =
+                  interpret_lambda(f.clone(), &mut env, v.clone(), customs)?
+                {
                   Ok(b)
                 } else {
                   Err(InterpretError::new("Any function result was not a bool."))
@@ -231,14 +250,18 @@ fn any_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, Interp
 }
 
 // Executes the builtin all function
-fn all_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, InterpretError> {
+fn all_func(
+  arg: InterpretVal,
+  frame: &mut Frame,
+  customs: &CustomOps,
+) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
       match (t.get(0).unwrap(), t.get(1).unwrap()) {
         (InterpretVal::List(v), InterpretVal::Function(f)) => Ok(InterpretVal::Bool(
           v.iter()
             .map(|v| {
-              if let InterpretVal::Bool(b) = interpret_function(f, frame, v.clone())? {
+              if let InterpretVal::Bool(b) = interpret_function(f, frame, v.clone(), customs)? {
                 Ok(b)
               } else {
                 Err(InterpretError::new("Any function result was not a bool."))
@@ -255,7 +278,9 @@ fn all_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, Interp
           Ok(InterpretVal::Bool(
             v.iter()
               .map(|v| {
-                if let InterpretVal::Bool(b) = interpret_lambda(f.clone(), &mut env, v.clone())? {
+                if let InterpretVal::Bool(b) =
+                  interpret_lambda(f.clone(), &mut env, v.clone(), customs)?
+                {
                   Ok(b)
                 } else {
                   Err(InterpretError::new("Any function result was not a bool."))
@@ -288,13 +313,22 @@ fn all_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, Interp
 }
 
 // Executes the builtin fold function
-fn fold_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, InterpretError> {
+fn fold_func(
+  arg: InterpretVal,
+  frame: &mut Frame,
+  customs: &CustomOps,
+) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 3 {
       match (t.get(0).unwrap(), t.get(1).unwrap(), t.get(2).unwrap()) {
         (InterpretVal::List(v), s, InterpretVal::Function(f)) => {
           v.iter().fold(Ok(s.clone()), |acc, x| {
-            interpret_function(f, frame, InterpretVal::Tuple(vec![acc?, x.clone()]))
+            interpret_function(
+              f,
+              frame,
+              InterpretVal::Tuple(vec![acc?, x.clone()]),
+              customs,
+            )
           })
         }
         (InterpretVal::List(v), s, InterpretVal::Lambda(f, e)) => {
@@ -305,6 +339,7 @@ fn fold_func(arg: InterpretVal, frame: &mut Frame) -> Result<InterpretVal, Inter
               f.clone(),
               &mut l,
               InterpretVal::Tuple(vec![acc?, x.clone()]),
+              customs,
             )
           })
         }
