@@ -180,7 +180,14 @@ UnaryOp: UnaryOp = {
 //------------------------
 
 CustomOperator: OperatorChars = {
+    "@" => OperatorChars::At,
+    "&" => OperatorChars::And,
     "?" => OperatorChars::QuestionMark,
+    "§" => OperatorChars::Section,
+    "$" => OperatorChars::Dollar,
+    "\\" => OperatorChars::Backslash,
+    "~" => OperatorChars::Tilda,
+    "^" => OperatorChars::Carat,
 }
 
 

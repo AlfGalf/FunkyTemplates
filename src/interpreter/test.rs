@@ -1,5 +1,11 @@
+use std::collections::HashMap;
+
+use crate::ast::ExprInner::Op;
+use crate::interpreter::CustomOps;
 #[cfg(test)]
 use crate::InterpretVal;
+use crate::OperatorChars::Carat;
+use crate::{Argument, CustBinOp, ReturnVal};
 
 // Creates a empty tuple, helper function for tests
 #[cfg(test)]
@@ -15,7 +21,7 @@ fn test_interpret() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#main\n5;")
     .unwrap();
-  let res = interpret(&temp, "main", blank());
+  let res = interpret(&temp, "main", blank(), &CustomOps::new());
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(5)");
 }
@@ -28,7 +34,7 @@ fn test_lambda() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#main\n|x => 5|();")
     .unwrap();
-  let res = interpret(&temp, "main", blank());
+  let res = interpret(&temp, "main", blank(), &CustomOps::new());
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(5)");
@@ -42,7 +48,7 @@ fn test_func() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#one 1;#main\none();")
     .unwrap();
-  let res = interpret(&temp, "main", blank());
+  let res = interpret(&temp, "main", blank(), &CustomOps::new());
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(1)");
@@ -56,7 +62,7 @@ fn test_interpolation() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#main\nf\"test{2}test{5}\"f;")
     .unwrap();
-  let res = interpret(&temp, "main", blank());
+  let res = interpret(&temp, "main", blank(), &CustomOps::new());
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "String(test2test5)");
@@ -73,7 +79,7 @@ fn test_add_sub() {
       "#main\nf\"test{2+2} {4-3} {2--1}\"f + \"test\";",
     )
     .unwrap();
-  let res = interpret(&temp, "main", blank());
+  let res = interpret(&temp, "main", blank(), &CustomOps::new());
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "String(test4 1 3test)");
@@ -90,7 +96,7 @@ fn test_mult_div() {
       "#main\n f\"test{2*3} {10/3} {\"test\" * 2}\"f;",
     )
     .unwrap();
-  let res = interpret(&temp, "main", blank());
+  let res = interpret(&temp, "main", blank(), &CustomOps::new());
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(
@@ -111,6 +117,7 @@ fn test_pattern_match() {
       Expr::var(0, "x".to_string(), 0),
       InterpretVal::Int(5),
       &mut Frame::new(),
+      &CustomOps::new(),
     )
     .unwrap()
     .unwrap()
@@ -133,6 +140,7 @@ fn test_pattern_match() {
     ),
     InterpretVal::Int(5),
     &mut Frame::new(),
+    &CustomOps::new(),
   )
   .unwrap()
   .is_none());
@@ -146,6 +154,7 @@ fn test_pattern_match() {
       ),
       InterpretVal::Tuple(vec![InterpretVal::Int(5), InterpretVal::Int(4)]),
       &mut Frame::new(),
+      &CustomOps::new(),
     )
     .unwrap()
     .unwrap()
@@ -168,6 +177,7 @@ fn test_pattern_match() {
     ),
     InterpretVal::Tuple(vec![InterpretVal::Int(5), InterpretVal::Int(6)]),
     &mut Frame::new(),
+    &CustomOps::new(),
   )
   .is_err())
 }
@@ -181,7 +191,12 @@ fn test_args() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#one x -> x + 1;#main\none(2);")
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+  let res = interpret(
+    &temp,
+    "main",
+    InterpretVal::Tuple(vec![]),
+    &CustomOps::new(),
+  );
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(3)");
@@ -199,7 +214,7 @@ fn test_pattern_match_func() {
       "#main (x, 1) -> x - 1; (x, y) -> x + y;x -> x + 1; ",
     )
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Int(1));
+  let res = interpret(&temp, "main", InterpretVal::Int(1), &CustomOps::new());
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(2)");
 
@@ -207,6 +222,7 @@ fn test_pattern_match_func() {
     &temp,
     "main",
     InterpretVal::Tuple(vec![InterpretVal::Int(4), InterpretVal::Int(1)]),
+    &CustomOps::new(),
   );
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(3)");
@@ -215,6 +231,7 @@ fn test_pattern_match_func() {
     &temp,
     "main",
     InterpretVal::Tuple(vec![InterpretVal::Int(4), InterpretVal::Int(2)]),
+    &CustomOps::new(),
   );
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(6)");
@@ -229,7 +246,12 @@ fn test_eq() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#one x -> x == 1;#main\none(1);")
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+  let res = interpret(
+    &temp,
+    "main",
+    InterpretVal::Tuple(vec![]),
+    &CustomOps::new(),
+  );
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Bool(true)");
@@ -240,7 +262,12 @@ fn test_eq() {
       "#one x -> x == (1, 2); #main\none(1, 2);",
     )
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+  let res = interpret(
+    &temp,
+    "main",
+    InterpretVal::Tuple(vec![]),
+    &CustomOps::new(),
+  );
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Bool(true)");
@@ -251,7 +278,12 @@ fn test_eq() {
       "#one x -> x == (1, 2); #main\none(1, 3);",
     )
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+  let res = interpret(
+    &temp,
+    "main",
+    InterpretVal::Tuple(vec![]),
+    &CustomOps::new(),
+  );
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Bool(false)");
@@ -266,12 +298,12 @@ fn test_guards() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#main\nx -> 2|x==3;y -> 5;")
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Int(2));
+  let res = interpret(&temp, "main", InterpretVal::Int(2), &CustomOps::new());
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(5)");
 
-  let res = interpret(&temp, "main", InterpretVal::Int(3));
+  let res = interpret(&temp, "main", InterpretVal::Int(3), &CustomOps::new());
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Int(2)");
@@ -286,7 +318,12 @@ fn test_escapes() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#main\n\"\\{\\}\\\\\";")
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+  let res = interpret(
+    &temp,
+    "main",
+    InterpretVal::Tuple(vec![]),
+    &CustomOps::new(),
+  );
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "String({}\\)");
@@ -294,7 +331,7 @@ fn test_escapes() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#main\nx -> f\"\\{\\} {x} \\\\\"f;")
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Int(5));
+  let res = interpret(&temp, "main", InterpretVal::Int(5), &CustomOps::new());
   // println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "String({} 5 \\)");
@@ -309,7 +346,12 @@ fn test_error() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#main\n 5 + \"hi\";")
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+  let res = interpret(
+    &temp,
+    "main",
+    InterpretVal::Tuple(vec![]),
+    &CustomOps::new(),
+  );
   // println!("{:?}", res);
   assert!(res.is_err());
   assert_eq!(
@@ -327,7 +369,12 @@ fn test_builtin() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#main\nget(list(1, 4, 9, 11), 2);")
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+  let res = interpret(
+    &temp,
+    "main",
+    InterpretVal::Tuple(vec![]),
+    &CustomOps::new(),
+  );
   // println!("{:?}", res);
   // assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.unwrap()), "Int(9)");
@@ -335,7 +382,12 @@ fn test_builtin() {
   let temp = TemplateParser::new()
     .parse(&ParserState::new(), "#main\nget(list(1, 4), 2);")
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Tuple(vec![]));
+  let res = interpret(
+    &temp,
+    "main",
+    InterpretVal::Tuple(vec![]),
+    &CustomOps::new(),
+  );
   // println!("{:?}", res);
   assert!(res.is_err());
   assert_eq!(
@@ -367,6 +419,7 @@ fn test_map() {
       InterpretVal::Int(123),
       InterpretVal::Int(-123),
     ]),
+    &CustomOps::new(),
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
@@ -401,6 +454,7 @@ fn test_filter() {
       InterpretVal::Int(1236),
       InterpretVal::Int(1237),
     ]),
+    &CustomOps::new(),
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
@@ -432,6 +486,7 @@ fn test_length() {
       InterpretVal::Int(1236),
       InterpretVal::Int(1237),
     ]),
+    &CustomOps::new(),
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
@@ -463,6 +518,7 @@ fn test_any() {
       InterpretVal::Int(1236),
       InterpretVal::Int(1237),
     ]),
+    &CustomOps::new(),
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
@@ -483,6 +539,7 @@ fn test_any() {
       InterpretVal::Int(13),
       InterpretVal::Int(1237),
     ]),
+    &CustomOps::new(),
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
@@ -514,6 +571,7 @@ fn test_all() {
       InterpretVal::Int(1236),
       InterpretVal::Int(1237),
     ]),
+    &CustomOps::new(),
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
@@ -534,6 +592,7 @@ fn test_all() {
       InterpretVal::Int(12),
       InterpretVal::Int(1236),
     ]),
+    &CustomOps::new(),
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
@@ -565,6 +624,7 @@ fn test_fold() {
       InterpretVal::Int(1236),
       InterpretVal::Int(1237),
     ]),
+    &CustomOps::new(),
   );
   // println!("{:?}", res);
   assert!(res.is_ok());
@@ -583,8 +643,49 @@ fn test_closure() {
       "#closure y -> |a => a + y|; #main\n x -> closure(3)(x);",
     )
     .unwrap();
-  let res = interpret(&temp, "main", InterpretVal::Int(5));
+  let res = interpret(&temp, "main", InterpretVal::Int(5), &CustomOps::new());
   // println!("{:?}", res);
+  assert!(res.is_ok());
+  assert_eq!(format!("{:?}", res.unwrap()), "Int(8)");
+}
+
+// Tests builtin operators
+#[test]
+fn test_builtin_binary_operators() {
+  use crate::interpreter::interpret;
+  use crate::OperatorChars;
+  use crate::{ParserState, TemplateParser};
+
+  let temp = TemplateParser::new()
+    .parse(
+      &ParserState {
+        unary_ops: vec![],
+        binary_ops: vec![OperatorChars::Carat],
+      },
+      "#main 2 ^ 3;",
+    )
+    .unwrap();
+  let res = interpret(
+    &temp,
+    "main",
+    blank(),
+    &CustomOps::new_from_hash(
+      HashMap::from([(
+        OperatorChars::Carat,
+        CustBinOp {
+          function: |l, r| {
+            if let (ReturnVal::Int(l), ReturnVal::Int(r)) = (l, r) {
+              Ok(Argument::Int(l.pow(r as u32)))
+            } else {
+              panic!()
+            }
+          },
+        },
+      )]),
+      Default::default(),
+    ),
+  );
+  println!("{:?}", res);
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.unwrap()), "Int(8)");
 }
