@@ -79,13 +79,16 @@ StringInt: Vec<InterpolationPart> = {
     <l:@L> <s: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> <r: @R> =>? Ok(
       vec![InterpolationPart::String(process_string(&s[2..s.len()-2])
         .map_err(|s| ParseError::User {error: (l, s, r)})?)]),
-    <l1:@L> <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <r1: @R> <mut si: StringIntMid> <l2: @L>
+    <l1:@L> <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <r1: @R>
+            <mut si: StringIntMid> <l2: @L>
             <s2: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> <r2: @R> =>? Ok({
         si.insert(0, InterpolationPart::String(
-            process_string(&s1[2..s1.len()-1]).map_err(|s| ParseError::User {error: (l1, s, r1)})?
+            process_string(&s1[2..s1.len()-1])
+              .map_err(|s| ParseError::User {error: (l1, s, r1)})?
         ));
         si.push(InterpolationPart::String(
-            process_string(&s2[1..s2.len()-2]).map_err(|s| ParseError::User {error: (l2, s, r2)})?
+            process_string(&s2[1..s2.len()-2])
+              .map_err(|s| ParseError::User {error: (l2, s, r2)})?
         ));
         si
     }),
@@ -94,13 +97,16 @@ StringInt: Vec<InterpolationPart> = {
 // Central sections within an interpolation string
 StringIntMid: Vec<InterpolationPart> = {
     Expr => vec![InterpolationPart::Expr(<>)],
-    <mut si: StringIntMid> <l: @L> <s: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <r: @R> <e: Expr> =>? Ok({
-        si.push(InterpolationPart::String(
-            process_string(&s[1..s.len()-1]).map_err(|s| ParseError::User {error: (l, s, r)})?
-        ));
-        si.push(InterpolationPart::Expr(e));
-        si
-    })
+    <mut si: StringIntMid> <l: @L>
+        <s: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#>
+        <r: @R> <e: Expr> =>? Ok({
+            si.push(InterpolationPart::String(
+                process_string(&s[1..s.len()-1])
+                  .map_err(|s| ParseError::User {error: (l, s, r)})?
+            ));
+            si.push(InterpolationPart::Expr(e));
+            si
+        })
 };
 
 // Numbers
@@ -202,7 +208,9 @@ CustomBinOp: Expr = {
         if state.binary_ops.contains(&o) {
             Ok(Expr::custom_op(<>))
         } else {
-            Err(ParseError::User { error: (l, "This binary operator is not defined".to_string(), r) })
+            Err(ParseError::User { error:
+              (l, "This binary operator is not defined".to_string(), r)
+            })
         }
     },
     CustomUnaryOp,
@@ -214,7 +222,9 @@ CustomUnaryOp: Expr = {
         if state.unary_ops.contains(&o) {
             Ok(Expr::custom_unary(<>))
         } else {
-            Err(ParseError::User { error: (l, "This unary operator is not defined".to_string(), r) })
+            Err(ParseError::User { error:
+              (l, "This unary operator is not defined".to_string(), r)
+            })
         }
     },
     UnaryExpr,
@@ -244,13 +254,15 @@ Term: Expr = {
     @L StringTerm @R => Expr::string(<>),
     @L StringInt @R => Expr::interpolation_string(<>),
     <l:@L> "|" <l1:@L> <s: Comma<Expr>> <r1:@L> "=>" <e: Expr> "|" <r:@R> =>
-           Expr::lambda(l, Pattern { start: Expr::tuple(l1, s, r1), result: e, guards: vec![]}, r),
+           Expr::lambda(l, Pattern {
+             start: Expr::tuple(l1, s, r1), result: e, guards: vec![]
+           }, r),
 };
 
 
 // Strings for the lexxer to ignore
 match {
-    r"\s*" => { }, // The default whitespace skipping is disabled an `ignore pattern` is specified
+    r"\s*" => { }, // Skip any white space character strings
     r"//[^\n\r]*[\n\r]*" => { }, // Skip `// comments`
     r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/" => { },  // Skip `/* comments */`
     _
