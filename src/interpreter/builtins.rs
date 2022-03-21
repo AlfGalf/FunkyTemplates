@@ -1,18 +1,16 @@
-use std::thread::current;
-
-use crate::interpreter::{interpret_function, interpret_lambda, CustomOps, Frame};
+use crate::interpreter::{interpret_function, interpret_lambda, Customs, Frame};
 use crate::{InterpretError, InterpretVal};
 
 // Checks if the token refers to an inbuilt function
 // If it does, executes that function and returns Some() with the result of the function
 // Otherwise, returns none
 pub fn built_in(
-  name: String,
+  name: &str,
   arg: InterpretVal,
   frame: &mut Frame,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Option<Result<InterpretVal, InterpretError>> {
-  match name.as_str() {
+  match name {
     "list" => Some(list_func(arg)),
     "get" => Some(get_func(arg)),
     "map" => Some(map_func(arg, frame, customs)),
@@ -21,7 +19,7 @@ pub fn built_in(
     "any" => Some(any_func(arg, frame, customs)),
     "all" => Some(all_func(arg, frame, customs)),
     "fold" => Some(fold_func(arg, frame, customs)),
-    _ => None,
+    n => customs.built_ins.get(n).map(|f| f.call_func(&arg)),
   }
 }
 
@@ -80,7 +78,7 @@ fn get_func(arg: InterpretVal) -> Result<InterpretVal, InterpretError> {
 fn map_func(
   arg: InterpretVal,
   frame: &mut Frame,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
@@ -124,7 +122,7 @@ fn map_func(
 fn filter_func(
   arg: InterpretVal,
   frame: &mut Frame,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
@@ -191,7 +189,7 @@ fn filter_func(
 fn any_func(
   arg: InterpretVal,
   frame: &mut Frame,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
@@ -253,7 +251,7 @@ fn any_func(
 fn all_func(
   arg: InterpretVal,
   frame: &mut Frame,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
@@ -316,7 +314,7 @@ fn all_func(
 fn fold_func(
   arg: InterpretVal,
   frame: &mut Frame,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<InterpretVal, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 3 {

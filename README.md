@@ -16,6 +16,7 @@
 - [ ] Underscores parse time error stuff
 - [x] Move string escaping to lalrpop
 - [x] Use parser errors better
+- [ ] Check scope rules at parse time
 
 ### Interpreter:
 
