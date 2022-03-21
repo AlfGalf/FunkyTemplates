@@ -43,20 +43,20 @@ impl InterpretError {
 }
 
 // Values within the interpreter
-// #[derive(Debug, Clone, PartialEq)]
 // Cant use default implementations as CustomType cannot implement those types
-pub enum InterpretVal {
+#[derive(Clone, PartialEq)]
+pub enum InterpretVal<C: CustomType> {
   Int(i32),
   Bool(bool),
   String(String),
   Function(Vec<Pattern>),
-  Tuple(Vec<InterpretVal>),
-  List(Vec<InterpretVal>),
-  Lambda(Pattern, Frame),
-  Custom(Box<dyn CustomType>),
+  Tuple(Vec<InterpretVal<C>>),
+  List(Vec<InterpretVal<C>>),
+  Lambda(Pattern, Frame<C>),
+  Custom(C),
 }
 
-impl Debug for InterpretVal {
+impl<C: CustomType> Debug for InterpretVal<C> {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     match &self {
       InterpretVal::Int(n) => write!(f, "Int({:?})", n),
@@ -66,27 +66,12 @@ impl Debug for InterpretVal {
       InterpretVal::Tuple(t) => write!(f, "Tuple({:?})", t),
       InterpretVal::List(l) => write!(f, "List({:?})", l),
       InterpretVal::Lambda(l, _) => write!(f, "Lambda({:?})", l),
-      InterpretVal::Custom(c) => write!(f, "Custom({})", c.debug()),
+      InterpretVal::Custom(c) => write!(f, "Custom({:?})", c),
     }
   }
 }
 
-impl Clone for InterpretVal {
-  fn clone(&self) -> Self {
-    match &self {
-      InterpretVal::Int(n) => InterpretVal::Int(*n),
-      InterpretVal::Bool(b) => InterpretVal::Bool(*b),
-      InterpretVal::String(s) => InterpretVal::String(s.clone()),
-      InterpretVal::Function(fun) => InterpretVal::Function(fun.clone()),
-      InterpretVal::Tuple(t) => InterpretVal::Tuple(t.clone()),
-      InterpretVal::List(l) => InterpretVal::List(l.clone()),
-      InterpretVal::Lambda(l, r) => InterpretVal::Lambda(l.clone(), r.clone()),
-      InterpretVal::Custom(c) => InterpretVal::Custom((*c).clone()),
-    }
-  }
-}
-
-impl ToString for InterpretVal {
+impl<C: CustomType> ToString for InterpretVal<C> {
   // Used to convert values into strings for when they are added in interpolation strings
   fn to_string(&self) -> String {
     match self {
@@ -100,9 +85,9 @@ impl ToString for InterpretVal {
   }
 }
 
-impl InterpretVal {
+impl<C: CustomType> InterpretVal<C> {
   // Unwraps a tuple of length 1 to its enclosed value
-  pub fn unwrap_tuple(self) -> InterpretVal {
+  pub fn unwrap_tuple(self) -> InterpretVal<C> {
     if let InterpretVal::Tuple(s) = self {
       if s.len() == 1 {
         s[0].clone()
@@ -115,17 +100,17 @@ impl InterpretVal {
   }
 
   // Creates a Interpret val from a interpret val
-  pub fn from_arg(arg: &Argument) -> Self {
+  pub fn from_arg(arg: &Argument<C>) -> Self {
     match arg {
       Argument::Int(x) => InterpretVal::Int(*x),
       Argument::String(s) => InterpretVal::String(s.clone()),
       Argument::Tuple(v) => InterpretVal::Tuple(v.iter().map(InterpretVal::from_arg).collect()),
-      Argument::Custom(c) => InterpretVal::Custom((*c).clone()),
+      Argument::Custom(c) => InterpretVal::Custom(c.clone()),
     }
   }
 
   // Adds two interpret values together
-  pub fn add_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn add_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::String(l), r) => {
         Ok(InterpretVal::String(l.clone().add(r.to_string().as_str())))
@@ -146,7 +131,7 @@ impl InterpretVal {
   }
 
   // Subtracts v from this value
-  pub fn sub_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn sub_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l - r)),
       (InterpretVal::Custom(l), r) => l
@@ -164,7 +149,7 @@ impl InterpretVal {
   }
 
   // Multiplies this value by v
-  pub fn mult_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn mult_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l * r)),
       (InterpretVal::String(l), InterpretVal::Int(r)) => {
@@ -184,7 +169,7 @@ impl InterpretVal {
     }
   }
 
-  pub fn div_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn div_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l / r)),
       (InterpretVal::Custom(l), r) => l
@@ -202,7 +187,7 @@ impl InterpretVal {
   }
 
   // Finds the value of this value modulo v
-  pub fn modulo_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn modulo_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l % r)),
       (InterpretVal::Custom(l), r) => l
@@ -262,12 +247,12 @@ impl InterpretVal {
   }
 
   // Checks for inverse of the eq_op function
-  pub fn neq_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
+  pub fn neq_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
     Ok(!self.eq(v)?)
   }
 
   // Checks if this value can be considered less than v
-  pub fn lt_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
+  pub fn lt_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l < r),
       (InterpretVal::Custom(l), r) => l
@@ -283,7 +268,7 @@ impl InterpretVal {
   }
 
   // Checks if this value can be considered greater than v
-  pub fn gt_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
+  pub fn gt_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l > r),
       (InterpretVal::Custom(l), r) => l
@@ -299,7 +284,7 @@ impl InterpretVal {
   }
 
   // Checks if this value can be considered less than or equal to v
-  pub fn leq_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
+  pub fn leq_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l <= r),
       (InterpretVal::Custom(l), r) => l
@@ -315,7 +300,7 @@ impl InterpretVal {
   }
 
   // Checks if this value can be considered greater than or equal to v
-  pub fn geq_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
+  pub fn geq_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l >= r),
       (InterpretVal::Custom(l), r) => l
@@ -331,7 +316,7 @@ impl InterpretVal {
   }
 
   // Finds the result of this value and v under the logical and operator
-  pub fn and_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
+  pub fn and_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(*l && *r),
       (InterpretVal::Custom(l), r) => l
@@ -347,7 +332,7 @@ impl InterpretVal {
   }
 
   // Finds the result of this value and v under the logical or operator
-  pub fn or_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
+  pub fn or_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(*l || *r),
       (InterpretVal::Custom(l), r) => l
@@ -363,7 +348,7 @@ impl InterpretVal {
   }
 
   // Converts an interpret value to a return val that can be returned through the API
-  pub fn to_return_val(&self) -> Result<ReturnVal, InterpretError> {
+  pub fn to_return_val(&self) -> Result<ReturnVal<C>, InterpretError> {
     match self {
       InterpretVal::Int(i) => Ok(ReturnVal::Int(*i)),
       InterpretVal::Bool(b) => Ok(ReturnVal::Bool(*b)),
@@ -371,12 +356,12 @@ impl InterpretVal {
       InterpretVal::Tuple(v) => Ok(ReturnVal::Tuple(
         v.iter()
           .map(|x| x.to_return_val())
-          .collect::<Result<Vec<ReturnVal>, InterpretError>>()?,
+          .collect::<Result<Vec<ReturnVal<C>>, InterpretError>>()?,
       )),
       InterpretVal::List(v) => Ok(ReturnVal::List(
         v.iter()
           .map(|x| x.to_return_val())
-          .collect::<Result<Vec<ReturnVal>, InterpretError>>()?,
+          .collect::<Result<Vec<ReturnVal<C>>, InterpretError>>()?,
       )),
       InterpretVal::Function(_) => Err(InterpretError::new(
         "Cannot have function return type to root.",
@@ -404,13 +389,13 @@ impl Debug for InterpretError {
 }
 
 // Frame for holding the environment in an execution of a program
-#[derive(Debug, Clone)]
-pub struct Frame {
-  pub(crate) frame: HashMap<String, InterpretVal>,
-  next: Option<RefCell<Box<Frame>>>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Frame<C: CustomType> {
+  pub(crate) frame: HashMap<String, InterpretVal<C>>,
+  next: Option<RefCell<Box<Frame<C>>>>,
 }
 
-impl Frame {
+impl<C: CustomType> Frame<C> {
   // Creates a new blank frame
   pub fn new() -> Self {
     Self {
@@ -432,7 +417,7 @@ impl Frame {
   }
 
   // Adds a new value to the frame
-  pub fn add_val(&mut self, name: String, expr: &InterpretVal) -> Result<(), InterpretError> {
+  pub fn add_val(&mut self, name: String, expr: &InterpretVal<C>) -> Result<(), InterpretError> {
     if let Entry::Vacant(e) = self.frame.entry(name) {
       e.insert(expr.clone());
       Ok(())
@@ -444,7 +429,7 @@ impl Frame {
   }
 
   // finds the value associates with a token in this frame
-  pub fn find(&self, name: &str) -> Result<InterpretVal, InterpretError> {
+  pub fn find(&self, name: &str) -> Result<InterpretVal<C>, InterpretError> {
     match name {
       "true" => Ok(InterpretVal::Bool(true)),
       "false" => Ok(InterpretVal::Bool(false)),
@@ -467,7 +452,7 @@ impl Frame {
   // Note the clone, this can be done as the pure functional nature of the language prevents the
   //  higher frames being mutated while values in a lower function are modified
   // Could be replaced with a Rc for less data copying
-  pub fn set_next(&mut self, next: &Frame) {
-    self.next = Some(RefCell::new(Box::new(next.clone())))
+  pub fn set_next(&mut self, next: &Frame<C>) {
+    self.next = Some(RefCell::new(Box::new((*next).clone())))
   }
 }

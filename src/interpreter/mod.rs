@@ -8,19 +8,19 @@ use crate::ast::*;
 use crate::data_types::*;
 use crate::external_operators::CustomBuiltIn;
 use crate::interpreter::builtins::built_in;
-use crate::{CustomBinOp, CustomUnaryOp, OperatorChars, ReturnVal};
+use crate::{CustomBinOp, CustomType, CustomUnaryOp, OperatorChars, ReturnVal};
 
 mod builtins;
 mod test;
 
 /// Stores the current custom operators in the language
-pub struct Customs {
-  bin_ops: HashMap<OperatorChars, CustomBinOp>,
-  unary_ops: HashMap<OperatorChars, CustomUnaryOp>,
-  built_ins: HashMap<String, CustomBuiltIn>,
+pub struct Customs<C: CustomType> {
+  bin_ops: HashMap<OperatorChars, CustomBinOp<C>>,
+  unary_ops: HashMap<OperatorChars, CustomUnaryOp<C>>,
+  built_ins: HashMap<String, CustomBuiltIn<C>>,
 }
 
-impl Customs {
+impl<C: CustomType> Customs<C> {
   #[cfg(test)]
   fn new() -> Self {
     Self {
@@ -31,9 +31,9 @@ impl Customs {
   }
 
   pub fn new_from_hash(
-    bin: HashMap<OperatorChars, CustomBinOp>,
-    unary: HashMap<OperatorChars, CustomUnaryOp>,
-    builtins: HashMap<String, CustomBuiltIn>,
+    bin: HashMap<OperatorChars, CustomBinOp<C>>,
+    unary: HashMap<OperatorChars, CustomUnaryOp<C>>,
+    builtins: HashMap<String, CustomBuiltIn<C>>,
   ) -> Self {
     Self {
       bin_ops: bin,
@@ -44,14 +44,14 @@ impl Customs {
 }
 
 // Interprets a specific top-level function in a template
-pub fn interpret(
+pub fn interpret<C: CustomType>(
   temp: &Template,
   name: &str,
-  arg: InterpretVal,
-  customs: &Customs,
-) -> Result<ReturnVal, InterpretError> {
+  arg: InterpretVal<C>,
+  customs: &Customs<C>,
+) -> Result<ReturnVal<C>, InterpretError> {
   let res = {
-    let frame = Frame::from_template(temp);
+    let frame = Frame::<C>::from_template(temp);
     if let Ok(func) = frame.find(name) {
       if let InterpretVal::Function(p) = func {
         interpret_function(&p, &mut Frame::from_template(temp), arg, customs)
@@ -69,11 +69,11 @@ pub fn interpret(
 }
 
 // Recursive function for evaluating an expression
-fn interpret_recurse(
+fn interpret_recurse<C: CustomType>(
   expr: &Expr,
-  env: &mut Frame,
-  customs: &Customs,
-) -> Result<InterpretVal, InterpretError> {
+  env: &mut Frame<C>,
+  customs: &Customs<C>,
+) -> Result<InterpretVal<C>, InterpretError> {
   use crate::ast::ExprInner::*;
   match &expr.val {
     Str(s) => Ok(InterpretVal::String(s.to_string())),
@@ -132,7 +132,7 @@ fn interpret_recurse(
     Tuple(v) => Ok(InterpretVal::Tuple(
       v.iter()
         .map(|e| interpret_recurse(e, env, customs))
-        .collect::<Result<Vec<InterpretVal>, InterpretError>>()?,
+        .collect::<Result<Vec<InterpretVal<C>>, InterpretError>>()?,
     )),
     Lambda(p) => Ok(InterpretVal::Lambda(*p.clone(), env.clone())),
     CustomBinOp(l, o, r) => {
@@ -160,13 +160,13 @@ fn interpret_recurse(
 }
 
 // Function for evaluating a binary operation
-fn eval_op(
+fn eval_op<C: CustomType>(
   l: &Expr,
   op: &Opcode,
   r: &Expr,
-  env: &mut Frame,
-  customs: &Customs,
-) -> Result<InterpretVal, InterpretError> {
+  env: &mut Frame<C>,
+  customs: &Customs<C>,
+) -> Result<InterpretVal<C>, InterpretError> {
   let left = interpret_recurse(l, env, customs)?;
   let right = interpret_recurse(r, env, customs)?;
 
@@ -191,12 +191,12 @@ fn eval_op(
 // If it does, returns an Ok with a filled frame
 // Otherwise returns None
 // Returns an error if a variable with the same name is assigned to twice
-fn pattern_match(
+fn pattern_match<C: CustomType>(
   param: Expr,
-  arg: InterpretVal,
-  env: &mut Frame,
-  customs: &Customs,
-) -> Result<Option<Frame>, InterpretError> {
+  arg: InterpretVal<C>,
+  env: &mut Frame<C>,
+  customs: &Customs<C>,
+) -> Result<Option<Frame<C>>, InterpretError> {
   let mut res = Frame::new();
 
   let mut stack = vec![(param.unwrap_tuple(), arg.unwrap_tuple())];
@@ -223,7 +223,11 @@ fn pattern_match(
       } => {
         if let InterpretVal::Tuple(v) = cur_arg {
           if s.len() == v.len() {
-            for (p, a) in s.into_iter().zip(v).collect::<Vec<(Expr, InterpretVal)>>() {
+            for (p, a) in s
+              .into_iter()
+              .zip(v)
+              .collect::<Vec<(Expr, InterpretVal<C>)>>()
+            {
               stack.push((p, a).clone())
             }
           }
@@ -245,12 +249,12 @@ fn pattern_match(
 }
 
 // Interprets a function
-fn interpret_function(
+fn interpret_function<C: CustomType>(
   func: &[Pattern],
-  env: &mut Frame,
-  arg: InterpretVal,
-  customs: &Customs,
-) -> Result<InterpretVal, InterpretError> {
+  env: &mut Frame<C>,
+  arg: InterpretVal<C>,
+  customs: &Customs<C>,
+) -> Result<InterpretVal<C>, InterpretError> {
   for p in func {
     if let Some(mut r) = pattern_match(p.start.clone(), arg.clone(), env, customs)? {
       if p
@@ -271,12 +275,12 @@ fn interpret_function(
 }
 
 // Interprets a lambda function
-fn interpret_lambda(
+fn interpret_lambda<C: CustomType>(
   func: Pattern,
-  env: &mut Frame,
-  arg: InterpretVal,
-  customs: &Customs,
-) -> Result<InterpretVal, InterpretError> {
+  env: &mut Frame<C>,
+  arg: InterpretVal<C>,
+  customs: &Customs<C>,
+) -> Result<InterpretVal<C>, InterpretError> {
   if let Some(mut r) = pattern_match(func.start, arg, env, customs)? {
     r.set_next(env);
     interpret_recurse(&func.result, &mut r, customs)
