@@ -6,32 +6,39 @@ use itertools::Itertools;
 
 use crate::ast::*;
 use crate::data_types::*;
+use crate::external_operators::CustomBuiltIn;
 use crate::interpreter::builtins::built_in;
-use crate::{CustBinOp, OperatorChars, ReturnVal};
+use crate::{CustomBinOp, CustomUnaryOp, OperatorChars, ReturnVal};
 
 mod builtins;
 mod test;
 
-pub struct CustomOps {
-  bin_ops: HashMap<OperatorChars, CustBinOp>,
-  unary_ops: HashMap<OperatorChars, CustBinOp>,
+/// Stores the current custom operators in the language
+pub struct Customs {
+  bin_ops: HashMap<OperatorChars, CustomBinOp>,
+  unary_ops: HashMap<OperatorChars, CustomUnaryOp>,
+  built_ins: HashMap<String, CustomBuiltIn>,
 }
 
-impl CustomOps {
+impl Customs {
+  #[cfg(test)]
   fn new() -> Self {
     Self {
       bin_ops: Default::default(),
       unary_ops: Default::default(),
+      built_ins: Default::default(),
     }
   }
 
   pub fn new_from_hash(
-    bin: HashMap<OperatorChars, CustBinOp>,
-    unary: HashMap<OperatorChars, CustBinOp>,
+    bin: HashMap<OperatorChars, CustomBinOp>,
+    unary: HashMap<OperatorChars, CustomUnaryOp>,
+    builtins: HashMap<String, CustomBuiltIn>,
   ) -> Self {
     Self {
       bin_ops: bin,
       unary_ops: unary,
+      built_ins: builtins,
     }
   }
 }
@@ -41,7 +48,7 @@ pub fn interpret(
   temp: &Template,
   name: &str,
   arg: InterpretVal,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<ReturnVal, InterpretError> {
   let res = {
     let frame = Frame::from_template(temp);
@@ -65,7 +72,7 @@ pub fn interpret(
 fn interpret_recurse(
   expr: &Expr,
   env: &mut Frame,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<InterpretVal, InterpretError> {
   use crate::ast::ExprInner::*;
   match &expr.val {
@@ -97,7 +104,7 @@ fn interpret_recurse(
       let arg = interpret_recurse(a, env, customs)?;
       {
         if let ExprInner::Var(n) = f.val.clone() {
-          built_in(n, arg.clone(), env, customs)
+          built_in(&n, arg.clone(), env, customs)
         } else {
           None
         }
@@ -137,7 +144,14 @@ fn interpret_recurse(
 
       op.call_func(&l, &r)
     }
-    CustomUnaryOp(_, _) => todo!(),
+    CustomUnaryOp(o, r) => {
+      // Operator must exist otherwise wouldn't parse, so okay to unwrap
+      let op = customs.unary_ops.get(o).unwrap();
+
+      let r = interpret_recurse(r, env, customs)?;
+
+      op.call_func(&r)
+    }
   }
   .map_err(|mut e| {
     e.add_loc(expr.start, expr.end);
@@ -151,7 +165,7 @@ fn eval_op(
   op: &Opcode,
   r: &Expr,
   env: &mut Frame,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<InterpretVal, InterpretError> {
   let left = interpret_recurse(l, env, customs)?;
   let right = interpret_recurse(r, env, customs)?;
@@ -162,14 +176,14 @@ fn eval_op(
     Opcode::Mul => left.mult_op(&right),
     Opcode::Div => left.div_op(&right),
     Opcode::Mod => left.modulo_op(&right),
-    Opcode::Eq => left.eq_op(&right),
-    Opcode::Neq => left.neq_op(&right),
-    Opcode::Lt => left.lt_op(&right),
-    Opcode::Gt => left.gt_op(&right),
-    Opcode::Leq => left.leq_op(&right),
-    Opcode::Geq => left.geq_op(&right),
-    Opcode::And => left.and_op(&right),
-    Opcode::Or => left.or_op(&right),
+    Opcode::Eq => Ok(InterpretVal::Bool(left.eq_op(&right)?)),
+    Opcode::Neq => Ok(InterpretVal::Bool(left.neq_op(&right)?)),
+    Opcode::Lt => Ok(InterpretVal::Bool(left.lt_op(&right)?)),
+    Opcode::Gt => Ok(InterpretVal::Bool(left.gt_op(&right)?)),
+    Opcode::Leq => Ok(InterpretVal::Bool(left.leq_op(&right)?)),
+    Opcode::Geq => Ok(InterpretVal::Bool(left.geq_op(&right)?)),
+    Opcode::And => Ok(InterpretVal::Bool(left.and_op(&right)?)),
+    Opcode::Or => Ok(InterpretVal::Bool(left.or_op(&right)?)),
   }
 }
 
@@ -181,7 +195,7 @@ fn pattern_match(
   param: Expr,
   arg: InterpretVal,
   env: &mut Frame,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<Option<Frame>, InterpretError> {
   let mut res = Frame::new();
 
@@ -219,7 +233,7 @@ fn pattern_match(
       }
       e => {
         let res = interpret_recurse(&e, env, customs)?;
-        if !(res == cur_arg) {
+        if !(res.eq_op(&cur_arg)?) {
           return Ok(None);
         }
       }
@@ -235,7 +249,7 @@ fn interpret_function(
   func: &[Pattern],
   env: &mut Frame,
   arg: InterpretVal,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<InterpretVal, InterpretError> {
   for p in func {
     if let Some(mut r) = pattern_match(p.start.clone(), arg.clone(), env, customs)? {
@@ -244,7 +258,7 @@ fn interpret_function(
         .iter()
         .map(|p| {
           let res = interpret_recurse(p.expr.borrow(), &mut r, customs)?;
-          Ok(res == InterpretVal::Bool(true))
+          res.eq_op(&InterpretVal::Bool(true))
         })
         .fold_ok(true, |l, r| l && r)?
       {
@@ -261,7 +275,7 @@ fn interpret_lambda(
   func: Pattern,
   env: &mut Frame,
   arg: InterpretVal,
-  customs: &CustomOps,
+  customs: &Customs,
 ) -> Result<InterpretVal, InterpretError> {
   if let Some(mut r) = pattern_match(func.start, arg, env, customs)? {
     r.set_next(env);

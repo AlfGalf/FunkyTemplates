@@ -11,8 +11,10 @@ use lalrpop_util::ParseError;
 
 use crate::ast::{ParserState, Template};
 use crate::data_types::{InterpretError, InterpretVal};
-use crate::external_operators::{CustBinOp, OperatorChars};
-use crate::interpreter::{interpret, CustomOps};
+use crate::external_operators::{
+  CustomBinOp, CustomBuiltIn, CustomType, CustomUnaryOp, OperatorChars,
+};
+use crate::interpreter::{interpret, Customs};
 use crate::parser::language_definition::TemplateParser;
 
 mod ast;
@@ -25,24 +27,38 @@ pub mod external_operators;
 
 /// Represents a language to be parsed
 pub struct Language {
-  unary_operators: HashMap<OperatorChars, CustBinOp>,
-  binary_operators: HashMap<OperatorChars, CustBinOp>,
+  unary_operators: HashMap<OperatorChars, CustomUnaryOp>,
+  binary_operators: HashMap<OperatorChars, CustomBinOp>,
+  built_ins: HashMap<String, CustomBuiltIn>,
 }
 
 /// Represents a set of template functions
+#[derive(Debug)]
 pub struct ParsedTemplate {
   lang: String,
   temp: Template,
-  unary_operators: HashMap<OperatorChars, CustBinOp>,
-  binary_operators: HashMap<OperatorChars, CustBinOp>,
+  unary_operators: HashMap<OperatorChars, CustomUnaryOp>,
+  binary_operators: HashMap<OperatorChars, CustomBinOp>,
+  built_ins: HashMap<String, CustomBuiltIn>,
 }
 
 /// Represents an argument being parsed in to a function call
-#[derive(Clone)]
 pub enum Argument {
   Int(i32),
   String(String),
   Tuple(Vec<Argument>),
+  Custom(Box<dyn CustomType>),
+}
+
+impl Clone for Argument {
+  fn clone(&self) -> Self {
+    match &self {
+      Argument::Int(i) => Argument::Int(*i),
+      Argument::String(s) => Argument::String(s.clone()),
+      Argument::Tuple(t) => Argument::Tuple(t.clone()),
+      Argument::Custom(c) => Argument::Custom((*c).clone()),
+    }
+  }
 }
 
 /// Represents a function from a template
@@ -65,25 +81,23 @@ impl Language {
     Self {
       unary_operators: Default::default(),
       binary_operators: Default::default(),
+      built_ins: Default::default(),
     }
   }
 
-  pub fn add_bin_op(&mut self, char: OperatorChars, op: CustBinOp) -> &Self {
+  pub fn add_bin_op(&mut self, char: OperatorChars, op: CustomBinOp) -> &Self {
     self.binary_operators.entry(char).or_insert(op);
     self
   }
 
-  pub fn add_unary_op(&mut self, char: OperatorChars, op: CustBinOp) -> &Self {
+  pub fn add_unary_op(&mut self, char: OperatorChars, op: CustomUnaryOp) -> &Self {
     self.unary_operators.entry(char).or_insert(op);
     self
   }
 
-  pub fn add_custom_type(&self) -> &Self {
-    todo!()
-  }
-
-  pub fn add_custom_function(&self) -> &Self {
-    todo!()
+  pub fn add_custom_function(&mut self, name: String, func: CustomBuiltIn) -> &Self {
+    self.built_ins.entry(name).or_insert(func);
+    self
   }
 
   pub fn parse(&self, code: String) -> Result<ParsedTemplate, LanguageErr> {
@@ -101,6 +115,7 @@ impl Language {
         lang: code,
         unary_operators: self.unary_operators.clone(),
         binary_operators: self.binary_operators.clone(),
+        built_ins: self.built_ins.clone(),
       }),
       Err(e) => Err(LanguageErr::new_from_parser_err(
         e.map_token(|_| "".to_string()),
@@ -127,6 +142,7 @@ impl ParsedTemplate {
         lang: lang.to_string(),
         unary_operators: Default::default(),
         binary_operators: Default::default(),
+        built_ins: Default::default(),
       }),
       Err(e) => {
         // println!("{}", e);
@@ -176,13 +192,13 @@ impl ParsedTemplate {
 }
 
 /// Type for the values returned from the interpretation
-#[derive(PartialEq)]
 pub enum ReturnVal {
   String(String),
   Int(i32),
   Bool(bool),
   Tuple(Vec<ReturnVal>),
   List(Vec<ReturnVal>),
+  Custom(Box<dyn CustomType>),
 }
 
 impl<'a> LangFunc<'a> {
@@ -216,14 +232,18 @@ impl<'a> LangFunc<'a> {
         &self.lang.temp,
         self.name.as_str(),
         InterpretVal::from_arg(x),
-        &CustomOps::new_from_hash(Default::default(), Default::default()),
+        &Customs::new_from_hash(
+          self.lang.binary_operators.clone(),
+          self.lang.unary_operators.clone(),
+          self.lang.built_ins.clone(),
+        ),
       )
     } else {
       interpret(
         &self.lang.temp,
         self.name.as_str(),
         InterpretVal::Tuple(vec![]),
-        &CustomOps::new_from_hash(Default::default(), Default::default()),
+        &Customs::new_from_hash(Default::default(), Default::default(), Default::default()),
       )
     }
     .map_err(|e| LanguageErr::new_from_int_err(e, self.text.clone()))
@@ -297,7 +317,7 @@ impl LanguageErr {
         })
       }
       ParseError::UnrecognizedToken {
-        token: (l, t, r), ..
+        token: (l, _, r), ..
       } => {
         let (start_line, start_char) = get_lang_pos(&lang, l);
         let (end_line, end_char) = get_lang_pos(&lang, r);
@@ -309,7 +329,7 @@ impl LanguageErr {
         })
       }
       ParseError::ExtraToken {
-        token: (l, t, r), ..
+        token: (l, _, r), ..
       } => {
         let (start_line, start_char) = get_lang_pos(&lang, l);
         let (end_line, end_char) = get_lang_pos(&lang, r);
@@ -384,6 +404,7 @@ impl Debug for ReturnVal {
         "List({})",
         v.iter().map(|i| format!("{:?}", i)).join(", ")
       ),
+      ReturnVal::Custom(v) => write!(fmt, "Custom({})", v.debug()),
     }
   }
 }
@@ -396,6 +417,7 @@ impl ToString for ReturnVal {
       ReturnVal::String(s) => s.to_string(),
       ReturnVal::Tuple(v) => format!("({})", v.iter().map(|i| i.to_string()).join(", ")),
       ReturnVal::List(v) => format!("[{}]", v.iter().map(|i| i.to_string()).join(", ")),
+      ReturnVal::Custom(v) => v.to_string(),
     }
   }
 }

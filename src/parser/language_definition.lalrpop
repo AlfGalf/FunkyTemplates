@@ -70,13 +70,17 @@ pub Guard: Guard = {
 
 // Non interpolated strings
 pub StringTerm: String = {
-    <l:@L> <s:r#""[^"]*""#> <r:@R> =>? process_string(&s[1..s.len()-1]).map_err(|s| ParseError::User {error: (l, s, r)}),
+    <l:@L> <s:r#""[^"]*""#> <r:@R> =>? process_string(&s[1..s.len()-1])
+        .map_err(|s| ParseError::User {error: (l, s, r)}),
 };
 
 // Interpolated strings initial part
 StringInt: Vec<InterpolationPart> = {
-    <l:@L> <s: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> <r: @R> =>? Ok(vec![InterpolationPart::String(process_string(&s[2..s.len()-2]).map_err(|s| ParseError::User {error: (l, s, r)})?)]),
-    <l1:@L> <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <r1: @R> <mut si: StringIntMid> <l2: @L> <s2: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> <r2: @R> =>? Ok({
+    <l:@L> <s: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> <r: @R> =>? Ok(
+      vec![InterpolationPart::String(process_string(&s[2..s.len()-2])
+        .map_err(|s| ParseError::User {error: (l, s, r)})?)]),
+    <l1:@L> <s1: r#"f"([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*\{"#> <r1: @R> <mut si: StringIntMid> <l2: @L>
+            <s2: r#"\}([^\{\}\\"]|\\\{|\\\}|\\\\|\\")*"f"#> <r2: @R> =>? Ok({
         si.insert(0, InterpolationPart::String(
             process_string(&s1[2..s1.len()-1]).map_err(|s| ParseError::User {error: (l1, s, r1)})?
         ));
@@ -165,7 +169,8 @@ FactorOp: Opcode = {
 
 // Function
 CallTerm: Expr = {
-    <l: @L> <e:CallTerm> "(" <l1:@L> <c: Comma<Expr>> <r1:@R> ")" <r:@R> => Expr::func_call(l, e, Expr::tuple(l1, c, r1), r),
+    <l: @L> <e:CallTerm> "(" <l1:@L> <c: Comma<Expr>> <r1:@R> ")" <r:@R> =>
+          Expr::func_call(l, e, Expr::tuple(l1, c, r1), r),
     CustomBinOp,
 }
 
@@ -238,7 +243,8 @@ Term: Expr = {
     },
     @L StringTerm @R => Expr::string(<>),
     @L StringInt @R => Expr::interpolation_string(<>),
-    <l:@L> "|" <l1:@L> <s: Comma<Expr>> <r1:@L> "=>" <e: Expr> "|" <r:@R> => Expr::lambda(l, Pattern { start: Expr::tuple(l1, s, r1), result: e, guards: vec![]}, r),
+    <l:@L> "|" <l1:@L> <s: Comma<Expr>> <r1:@L> "=>" <e: Expr> "|" <r:@R> =>
+           Expr::lambda(l, Pattern { start: Expr::tuple(l1, s, r1), result: e, guards: vec![]}, r),
 };
 
 

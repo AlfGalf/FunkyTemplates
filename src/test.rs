@@ -12,12 +12,13 @@ fn test_library() {
       .unwrap()
       .arg(Argument::Int(1))
       .call()
-      .unwrap(),
-    ReturnVal::String("Hello 4".to_string())
+      .unwrap()
+      .to_string(),
+    ReturnVal::String("Hello 4".to_string()).to_string()
   );
 }
 
-// Tests teh error messages are correct.
+// Tests the error messages are correct.
 #[test]
 fn test_interpret_errors() {
   use crate::Argument;
@@ -49,4 +50,40 @@ fn test_parse_errors() {
     "Error: \"Unexpected End of File\"\nAt lines: 1:16 - 1:16\nCode: `#main t -> Hello`",
     format!("{:?}", lang_op.err().unwrap())
   )
+}
+
+// Tests passing in bin ops
+#[test]
+fn test_binary_ops() {
+  use crate::*;
+  let mut lang = Language::new();
+  lang.add_bin_op(
+    OperatorChars::Carat,
+    CustomBinOp {
+      function: |l, r| {
+        if let (ReturnVal::Int(l), ReturnVal::Int(r)) = (l, r) {
+          Ok(Argument::Int(l.pow(r as u32)))
+        } else {
+          panic!()
+        }
+      },
+    },
+  );
+
+  let parsed = lang.parse("#main (x, y) -> x ^ y;".to_string());
+
+  assert!(parsed.is_ok());
+  let parsed = parsed.unwrap();
+
+  let func = parsed.function("main");
+  assert!(func.is_ok());
+  let func = func.unwrap();
+
+  let arg = func.arg(Argument::Tuple(vec![Argument::Int(2), Argument::Int(3)]));
+  let res = arg.call();
+
+  assert!(res.is_ok());
+  let res = res.unwrap();
+
+  assert_eq!(format!("{:?}", res), "Int(8)");
 }

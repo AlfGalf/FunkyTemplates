@@ -7,6 +7,7 @@ use std::ops::Add;
 use itertools::Itertools;
 
 use crate::ast::Pattern;
+use crate::external_operators::CustomType;
 use crate::{Argument, ReturnVal, Template};
 
 // Errors from the interpreter, can optionally have location information added
@@ -25,6 +26,14 @@ impl InterpretError {
     }
   }
 
+  // Errors when they come from custom string
+  pub fn from_custom(name: Box<dyn ToString>) -> Self {
+    Self {
+      message: name.to_string(),
+      location: None,
+    }
+  }
+
   // Adds location data
   pub fn add_loc(&mut self, start: usize, end: usize) {
     if self.location.is_none() {
@@ -34,7 +43,8 @@ impl InterpretError {
 }
 
 // Values within the interpreter
-#[derive(Debug, Clone, PartialEq)]
+// #[derive(Debug, Clone, PartialEq)]
+// Cant use default implementations as CustomType cannot implement those types
 pub enum InterpretVal {
   Int(i32),
   Bool(bool),
@@ -43,6 +53,37 @@ pub enum InterpretVal {
   Tuple(Vec<InterpretVal>),
   List(Vec<InterpretVal>),
   Lambda(Pattern, Frame),
+  Custom(Box<dyn CustomType>),
+}
+
+impl Debug for InterpretVal {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    match &self {
+      InterpretVal::Int(n) => write!(f, "Int({:?})", n),
+      InterpretVal::Bool(b) => write!(f, "Bool({:?})", b),
+      InterpretVal::String(s) => write!(f, "String({:?})", s),
+      InterpretVal::Function(fun) => write!(f, "Function({:?})", fun),
+      InterpretVal::Tuple(t) => write!(f, "Tuple({:?})", t),
+      InterpretVal::List(l) => write!(f, "List({:?})", l),
+      InterpretVal::Lambda(l, _) => write!(f, "Lambda({:?})", l),
+      InterpretVal::Custom(c) => write!(f, "Custom({})", c.debug()),
+    }
+  }
+}
+
+impl Clone for InterpretVal {
+  fn clone(&self) -> Self {
+    match &self {
+      InterpretVal::Int(n) => InterpretVal::Int(*n),
+      InterpretVal::Bool(b) => InterpretVal::Bool(*b),
+      InterpretVal::String(s) => InterpretVal::String(s.clone()),
+      InterpretVal::Function(fun) => InterpretVal::Function(fun.clone()),
+      InterpretVal::Tuple(t) => InterpretVal::Tuple(t.clone()),
+      InterpretVal::List(l) => InterpretVal::List(l.clone()),
+      InterpretVal::Lambda(l, r) => InterpretVal::Lambda(l.clone(), r.clone()),
+      InterpretVal::Custom(c) => InterpretVal::Custom((*c).clone()),
+    }
+  }
 }
 
 impl ToString for InterpretVal {
@@ -79,6 +120,7 @@ impl InterpretVal {
       Argument::Int(x) => InterpretVal::Int(*x),
       Argument::String(s) => InterpretVal::String(s.clone()),
       Argument::Tuple(v) => InterpretVal::Tuple(v.iter().map(InterpretVal::from_arg).collect()),
+      Argument::Custom(c) => InterpretVal::Custom((*c).clone()),
     }
   }
 
@@ -89,6 +131,14 @@ impl InterpretVal {
         Ok(InterpretVal::String(l.clone().add(r.to_string().as_str())))
       }
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l + r)),
+      (InterpretVal::Custom(l), r) => l
+        .pre_add(r.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_add(l.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Add operator not defined for {:?} + {:?}.", l, r).as_str(),
       )),
@@ -99,6 +149,14 @@ impl InterpretVal {
   pub fn sub_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l - r)),
+      (InterpretVal::Custom(l), r) => l
+        .pre_sub(r.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_sub(l.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Subtract operator not defined for {:?} - {:?}.", l, r).as_str(),
       )),
@@ -112,6 +170,14 @@ impl InterpretVal {
       (InterpretVal::String(l), InterpretVal::Int(r)) => {
         Ok(InterpretVal::String(l.repeat(*r as usize)))
       }
+      (InterpretVal::Custom(l), r) => l
+        .pre_mult(r.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_mult(l.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Multiplication operator not defined for {:?} * {:?}.", l, r).as_str(),
       )),
@@ -121,6 +187,14 @@ impl InterpretVal {
   pub fn div_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l / r)),
+      (InterpretVal::Custom(l), r) => l
+        .pre_div(r.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_div(l.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Division operator not defined for {:?} / {:?}.", l, r).as_str(),
       )),
@@ -131,6 +205,14 @@ impl InterpretVal {
   pub fn modulo_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l % r)),
+      (InterpretVal::Custom(l), r) => l
+        .pre_mod(r.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_mod(l.to_return_val()?)
+        .map(|v| InterpretVal::from_arg(&v))
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Modulo operator not defined for {:?} % {:?}.", l, r).as_str(),
       )),
@@ -162,6 +244,12 @@ impl InterpretVal {
             .map(|(l, r)| l.eq(&r))
             .fold_ok(true, |l, r| l && r)?,
       ),
+      (InterpretVal::Custom(l), r) => l
+        .pre_eq(r.to_return_val()?)
+        .map_err(|s| InterpretError::from_custom(s)),
+      (l, InterpretVal::Custom(r)) => r
+        .post_eq(l.to_return_val()?)
+        .map_err(|s| InterpretError::from_custom(s)),
       (l, r) => Err(InterpretError::new(
         format!("Non matching types for equality: {:?} == {:?}", l, r).as_str(),
       )),
@@ -169,19 +257,25 @@ impl InterpretVal {
   }
 
   // Checks for equivalence of this value and other, wrapper for other function to simplify
-  pub fn eq_op(&self, right: &Self) -> Result<InterpretVal, InterpretError> {
-    Ok(InterpretVal::Bool(self.eq(right)?))
+  pub fn eq_op(&self, right: &Self) -> Result<bool, InterpretError> {
+    self.eq(right)
   }
 
   // Checks for inverse of the eq_op function
-  pub fn neq_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
-    Ok(InterpretVal::Bool(!self.eq(v)?))
+  pub fn neq_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
+    Ok(!self.eq(v)?)
   }
 
   // Checks if this value can be considered less than v
-  pub fn lt_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn lt_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
     match (self, v) {
-      (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Bool(l < r)),
+      (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l < r),
+      (InterpretVal::Custom(l), r) => l
+        .pre_lt(r.to_return_val()?)
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_lt(l.to_return_val()?)
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Comparison of types not supported {:?} < {:?}.", l, r).as_str(),
       )),
@@ -189,9 +283,15 @@ impl InterpretVal {
   }
 
   // Checks if this value can be considered greater than v
-  pub fn gt_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn gt_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
     match (self, v) {
-      (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Bool(l > r)),
+      (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l > r),
+      (InterpretVal::Custom(l), r) => l
+        .pre_gt(r.to_return_val()?)
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_gt(l.to_return_val()?)
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Comparison of types not supported {:?} > {:?}.", l, r).as_str(),
       )),
@@ -199,9 +299,15 @@ impl InterpretVal {
   }
 
   // Checks if this value can be considered less than or equal to v
-  pub fn leq_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn leq_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
     match (self, v) {
-      (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Bool(l <= r)),
+      (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l <= r),
+      (InterpretVal::Custom(l), r) => l
+        .pre_leq(r.to_return_val()?)
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_leq(l.to_return_val()?)
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Comparison of types not supported {:?} <= {:?}.", l, r).as_str(),
       )),
@@ -209,9 +315,15 @@ impl InterpretVal {
   }
 
   // Checks if this value can be considered greater than or equal to v
-  pub fn geq_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn geq_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
     match (self, v) {
-      (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Bool(l >= r)),
+      (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l >= r),
+      (InterpretVal::Custom(l), r) => l
+        .pre_geq(r.to_return_val()?)
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_geq(l.to_return_val()?)
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Comparison of types not supported {:?} >= {:?}.", l, r).as_str(),
       )),
@@ -219,9 +331,15 @@ impl InterpretVal {
   }
 
   // Finds the result of this value and v under the logical and operator
-  pub fn and_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn and_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
     match (self, v) {
-      (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(InterpretVal::Bool(*l && *r)),
+      (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(*l && *r),
+      (InterpretVal::Custom(l), r) => l
+        .pre_and(r.to_return_val()?)
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_and(l.to_return_val()?)
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("And operator not supported for {:?} && {:?}.", l, r).as_str(),
       )),
@@ -229,9 +347,15 @@ impl InterpretVal {
   }
 
   // Finds the result of this value and v under the logical or operator
-  pub fn or_op(&self, v: &InterpretVal) -> Result<InterpretVal, InterpretError> {
+  pub fn or_op(&self, v: &InterpretVal) -> Result<bool, InterpretError> {
     match (self, v) {
-      (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(InterpretVal::Bool(*l || *r)),
+      (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(*l || *r),
+      (InterpretVal::Custom(l), r) => l
+        .pre_or(r.to_return_val()?)
+        .map_err(InterpretError::from_custom),
+      (l, InterpretVal::Custom(r)) => r
+        .post_or(l.to_return_val()?)
+        .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("And operator not supported for {:?} && {:?}.", l, r).as_str(),
       )),
@@ -260,6 +384,7 @@ impl InterpretVal {
       InterpretVal::Lambda(_, _) => Err(InterpretError::new(
         "Cannot have lambda return type to root.",
       )),
+      InterpretVal::Custom(c) => Ok(ReturnVal::Custom((*c).clone())),
     }
   }
 }
@@ -279,7 +404,7 @@ impl Debug for InterpretError {
 }
 
 // Frame for holding the environment in an execution of a program
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Frame {
   pub(crate) frame: HashMap<String, InterpretVal>,
   next: Option<RefCell<Box<Frame>>>,
