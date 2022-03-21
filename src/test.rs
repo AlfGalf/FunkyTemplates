@@ -2,8 +2,8 @@
 #[test]
 fn test_library() {
   use crate::Argument;
-  use crate::{ParsedTemplate, ReturnVal};
-  let lang_op = ParsedTemplate::from_text("#main t -> f\"Hello {t + 3}\"f;");
+  use crate::{BlankCustom, ParsedTemplate, ReturnVal};
+  let lang_op = ParsedTemplate::<BlankCustom>::from_text("#main t -> f\"Hello {t + 3}\"f;");
   assert!(lang_op.is_ok());
   let lang = lang_op.unwrap();
   assert_eq!(
@@ -14,7 +14,7 @@ fn test_library() {
       .call()
       .unwrap()
       .to_string(),
-    ReturnVal::String("Hello 4".to_string()).to_string()
+    ReturnVal::<BlankCustom>::String("Hello 4".to_string()).to_string()
   );
 }
 
@@ -22,8 +22,9 @@ fn test_library() {
 #[test]
 fn test_interpret_errors() {
   use crate::Argument;
-  use crate::ParsedTemplate;
-  let lang_op = ParsedTemplate::from_text("#main t -> \nf\"Hello {t + \n \"hi\"}\"f;");
+  use crate::{BlankCustom, ParsedTemplate};
+  let lang_op =
+    ParsedTemplate::<BlankCustom>::from_text("#main t -> \nf\"Hello {t + \n \"hi\"}\"f;");
   assert!(lang_op.is_ok());
   let lang = lang_op.unwrap();
   assert_eq!(
@@ -43,8 +44,8 @@ fn test_interpret_errors() {
 // Tests the parse errors are correct
 #[test]
 fn test_parse_errors() {
-  use crate::ParsedTemplate;
-  let lang_op = ParsedTemplate::from_text("#main t -> Hello");
+  use crate::{BlankCustom, ParsedTemplate};
+  let lang_op = ParsedTemplate::<BlankCustom>::from_text("#main t -> Hello");
   assert!(lang_op.is_err());
   assert_eq!(
     "Error: \"Unexpected End of File\"\nAt lines: 1:16 - 1:16\nCode: `#main t -> Hello`",
@@ -60,7 +61,7 @@ fn test_binary_ops() {
   lang.add_bin_op(
     OperatorChars::Carat,
     CustomBinOp {
-      function: |l, r| {
+      function: |l: ReturnVal<BlankCustom>, r| {
         if let (ReturnVal::Int(l), ReturnVal::Int(r)) = (l, r) {
           Ok(Argument::Int(l.pow(r as u32)))
         } else {

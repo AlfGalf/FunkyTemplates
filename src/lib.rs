@@ -26,57 +26,57 @@ mod test;
 pub mod external_operators;
 
 /// Represents a language to be parsed
-pub struct Language {
-  unary_operators: HashMap<OperatorChars, CustomUnaryOp>,
-  binary_operators: HashMap<OperatorChars, CustomBinOp>,
-  built_ins: HashMap<String, CustomBuiltIn>,
+pub struct Language<C: CustomType> {
+  unary_operators: HashMap<OperatorChars, CustomUnaryOp<C>>,
+  binary_operators: HashMap<OperatorChars, CustomBinOp<C>>,
+  built_ins: HashMap<String, CustomBuiltIn<C>>,
 }
 
 /// Represents a set of template functions
 #[derive(Debug)]
-pub struct ParsedTemplate {
+pub struct ParsedTemplate<C: CustomType> {
   lang: String,
   temp: Template,
-  unary_operators: HashMap<OperatorChars, CustomUnaryOp>,
-  binary_operators: HashMap<OperatorChars, CustomBinOp>,
-  built_ins: HashMap<String, CustomBuiltIn>,
+  unary_operators: HashMap<OperatorChars, CustomUnaryOp<C>>,
+  binary_operators: HashMap<OperatorChars, CustomBinOp<C>>,
+  built_ins: HashMap<String, CustomBuiltIn<C>>,
 }
 
 /// Represents an argument being parsed in to a function call
-pub enum Argument {
+pub enum Argument<C: CustomType> {
   Int(i32),
   String(String),
-  Tuple(Vec<Argument>),
-  Custom(Box<dyn CustomType>),
+  Tuple(Vec<Argument<C>>),
+  Custom(C),
 }
 
-impl Clone for Argument {
+impl<C: CustomType> Clone for Argument<C> {
   fn clone(&self) -> Self {
     match &self {
       Argument::Int(i) => Argument::Int(*i),
       Argument::String(s) => Argument::String(s.clone()),
       Argument::Tuple(t) => Argument::Tuple(t.clone()),
-      Argument::Custom(c) => Argument::Custom((*c).clone()),
+      Argument::Custom(c) => Argument::Custom(c.clone()),
     }
   }
 }
 
 /// Represents a function from a template
 /// Can contain an argument also
-pub struct LangFunc<'a> {
-  lang: &'a ParsedTemplate,
+pub struct LangFunc<'a, C: CustomType> {
+  lang: &'a ParsedTemplate<C>,
   name: String,
-  arg: Option<Argument>,
+  arg: Option<Argument<C>>,
   text: String,
 }
 
-impl Default for Language {
+impl<C: CustomType> Default for Language<C> {
   fn default() -> Self {
     Self::new()
   }
 }
 
-impl Language {
+impl<C: CustomType> Language<C> {
   pub fn new() -> Self {
     Self {
       unary_operators: Default::default(),
@@ -85,22 +85,22 @@ impl Language {
     }
   }
 
-  pub fn add_bin_op(&mut self, char: OperatorChars, op: CustomBinOp) -> &Self {
+  pub fn add_bin_op(&mut self, char: OperatorChars, op: CustomBinOp<C>) -> &Self {
     self.binary_operators.entry(char).or_insert(op);
     self
   }
 
-  pub fn add_unary_op(&mut self, char: OperatorChars, op: CustomUnaryOp) -> &Self {
+  pub fn add_unary_op(&mut self, char: OperatorChars, op: CustomUnaryOp<C>) -> &Self {
     self.unary_operators.entry(char).or_insert(op);
     self
   }
 
-  pub fn add_custom_function(&mut self, name: String, func: CustomBuiltIn) -> &Self {
+  pub fn add_custom_function(&mut self, name: String, func: CustomBuiltIn<C>) -> &Self {
     self.built_ins.entry(name).or_insert(func);
     self
   }
 
-  pub fn parse(&self, code: String) -> Result<ParsedTemplate, LanguageErr> {
+  pub fn parse(&self, code: String) -> Result<ParsedTemplate<C>, LanguageErr> {
     let parser = TemplateParser::new();
     let parser_state = ParserState {
       unary_ops: self.unary_operators.keys().cloned().collect(),
@@ -125,13 +125,13 @@ impl Language {
   }
 }
 
-impl ParsedTemplate {
+impl<C: CustomType> ParsedTemplate<C> {
   /// Builds a language from a code string
   ///
   /// ## Example
   /// ```
-  /// use funki_templates::ParsedTemplate;
-  /// let x = ParsedTemplate::from_text("#main x -> x + 1;");
+  /// use funki_templates::{ParsedTemplate, BlankCustom};
+  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main x -> x + 1;");
   /// ```
   pub fn from_text(lang: &str) -> Result<Self, LanguageErr> {
     let parser: TemplateParser = TemplateParser::new();
@@ -158,8 +158,8 @@ impl ParsedTemplate {
   ///
   /// ## Example
   /// ```
-  /// use funki_templates::ParsedTemplate;
-  /// let x = ParsedTemplate::from_text("#main x -> x + 1;").unwrap();
+  /// use funki_templates::{ParsedTemplate, BlankCustom};
+  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main x -> x + 1;").unwrap();
   /// x.list(); // -> ["main"]
   /// ```
   pub fn list(&self) -> Vec<String> {
@@ -170,11 +170,11 @@ impl ParsedTemplate {
   ///
   /// ## Example
   /// ```
-  /// use funki_templates::ParsedTemplate;
-  /// let x = ParsedTemplate::from_text("#main x -> x + 1;").unwrap();
+  /// use funki_templates::{ParsedTemplate, BlankCustom};
+  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main x -> x + 1;").unwrap();
   /// let f = x.function("main");
   /// ```
-  pub fn function(&self, name: &str) -> Result<LangFunc, LanguageErr> {
+  pub fn function(&self, name: &str) -> Result<LangFunc<C>, LanguageErr> {
     if self.temp.env.contains_key(name) {
       Ok(LangFunc {
         lang: self,
@@ -192,27 +192,27 @@ impl ParsedTemplate {
 }
 
 /// Type for the values returned from the interpretation
-pub enum ReturnVal {
+pub enum ReturnVal<T> {
   String(String),
   Int(i32),
   Bool(bool),
-  Tuple(Vec<ReturnVal>),
-  List(Vec<ReturnVal>),
-  Custom(Box<dyn CustomType>),
+  Tuple(Vec<ReturnVal<T>>),
+  List(Vec<ReturnVal<T>>),
+  Custom(T),
 }
 
-impl<'a> LangFunc<'a> {
+impl<'a, C: CustomType> LangFunc<'a, C> {
   /// Adds an argument for a function call
   ///
   /// ## Example
   /// ```
-  /// use funki_templates::{Argument, ParsedTemplate};
-  /// let x = ParsedTemplate::from_text("#main x -> x + 4;").unwrap();
+  /// use funki_templates::{Argument, ParsedTemplate, BlankCustom};
+  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main x -> x + 4;").unwrap();
   /// let f = x.function("main").unwrap();
   /// let f = f.arg(Argument::Int(5));
   /// f.call().unwrap(); // -> ReturnVal::Int(9)
   /// ```
-  pub fn arg(mut self, arg: Argument) -> Self {
+  pub fn arg(mut self, arg: Argument<C>) -> Self {
     self.arg = Some(arg);
     self
   }
@@ -221,12 +221,12 @@ impl<'a> LangFunc<'a> {
   ///
   /// ## Example
   /// ```
-  /// use funki_templates::{Language, ParsedTemplate};
-  /// let x = ParsedTemplate::from_text("#main 5;").unwrap();
+  /// use funki_templates::{Language, ParsedTemplate, BlankCustom};
+  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main 5;").unwrap();
   /// let f = x.function("main").unwrap();
   /// f.call().unwrap(); // -> ReturnVal::Int(5)
   /// ```
-  pub fn call(&self) -> Result<ReturnVal, LanguageErr> {
+  pub fn call(&self) -> Result<ReturnVal<C>, LanguageErr> {
     if let Some(x) = &self.arg {
       interpret(
         &self.lang.temp,
@@ -388,7 +388,7 @@ impl Debug for LanguageErr {
   }
 }
 
-impl Debug for ReturnVal {
+impl<C: CustomType> Debug for ReturnVal<C> {
   fn fmt(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
     match self {
       ReturnVal::Bool(b) => write!(fmt, "Bool({})", b),
@@ -404,12 +404,12 @@ impl Debug for ReturnVal {
         "List({})",
         v.iter().map(|i| format!("{:?}", i)).join(", ")
       ),
-      ReturnVal::Custom(v) => write!(fmt, "Custom({})", v.debug()),
+      ReturnVal::Custom(v) => write!(fmt, "Custom({:?})", v),
     }
   }
 }
 
-impl ToString for ReturnVal {
+impl<C: CustomType> ToString for ReturnVal<C> {
   fn to_string(&self) -> String {
     match self {
       ReturnVal::Bool(b) => b.to_string(),
@@ -421,3 +421,15 @@ impl ToString for ReturnVal {
     }
   }
 }
+
+/// A blank custom type to use if no custom types are required
+#[derive(Clone, Debug, PartialEq)]
+pub struct BlankCustom {}
+
+impl ToString for BlankCustom {
+  fn to_string(&self) -> String {
+    "Blank".to_string()
+  }
+}
+
+impl CustomType for BlankCustom {}

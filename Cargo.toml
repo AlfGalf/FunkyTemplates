@@ -11,3 +11,4 @@ lalrpop = "0.19.7"
 lalrpop-util = { version = "0.19.7", features = ["lexer"] }
 regex = "1"
 itertools = "0.10.3"
+match_cast = "0.1.2"

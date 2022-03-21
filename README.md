@@ -49,9 +49,9 @@
   - [X] All
   - [X] Fold
   - [X] Length
-- [ ] Extra functions
+- [x] Extra functions
 - [x] Extra operators
-- [ ] Extra types
+- [x] Extra types
 
 ### API:
 
