@@ -2,8 +2,8 @@
 #[test]
 fn test_library() {
   use crate::Argument;
-  use crate::{BlankCustom, ParsedTemplate, ReturnVal};
-  let lang_op = ParsedTemplate::<BlankCustom>::from_text("#main t -> f\"Hello {t + 3}\"f;");
+  use crate::{BlankCustom, ReturnVal, Script};
+  let lang_op = Script::<BlankCustom>::from_text("#main t -> f\"Hello {t + 3}\"f;");
   assert!(lang_op.is_ok());
   let lang = lang_op.unwrap();
   assert_eq!(
@@ -22,9 +22,8 @@ fn test_library() {
 #[test]
 fn test_interpret_errors() {
   use crate::Argument;
-  use crate::{BlankCustom, ParsedTemplate};
-  let lang_op =
-    ParsedTemplate::<BlankCustom>::from_text("#main t -> \nf\"Hello {t + \n \"hi\"}\"f;");
+  use crate::{BlankCustom, Script};
+  let lang_op = Script::<BlankCustom>::from_text("#main t -> \nf\"Hello {t + \n \"hi\"}\"f;");
   assert!(lang_op.is_ok());
   let lang = lang_op.unwrap();
   assert_eq!(
@@ -44,8 +43,8 @@ fn test_interpret_errors() {
 // Tests the parse errors are correct
 #[test]
 fn test_parse_errors() {
-  use crate::{BlankCustom, ParsedTemplate};
-  let lang_op = ParsedTemplate::<BlankCustom>::from_text("#main t -> Hello");
+  use crate::{BlankCustom, Script};
+  let lang_op = Script::<BlankCustom>::from_text("#main t -> Hello");
   assert!(lang_op.is_err());
   assert_eq!(
     "Error: \"Unexpected End of File\"\nAt lines: 1:16 - 1:16\nCode: `#main t -> Hello`",

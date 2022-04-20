@@ -28,10 +28,10 @@ pub Name: String = {
     <s:r"[A-Za-z][A-Za-z0-9_\-]*"> => s.to_string()
 };
 
-// Full Template
-pub Template: Template = {
-    <mut t:Template> <f:Function> => {t.env.insert(f.0, f.1); t},
-    <f: Function> => Template { env: HashMap::from([(f.0, f.1)]) }
+// Full Program
+pub Program: Program = {
+    <mut t:Program> <f:Function> => {t.env.insert(f.0, f.1); t},
+    <f: Function> => Program { env: HashMap::from([(f.0, f.1)]) }
 };
 
 // Function name
@@ -162,8 +162,8 @@ AddSubExprOp: Opcode = {
 
 // Multiplication, division and modulo operations
 Factor: Expr = {
-    @L Factor FactorOp CallTerm @R => Expr::op(<>),
-    CallTerm,
+    @L Factor FactorOp CustomBinOp @R => Expr::op(<>),
+    CustomBinOp,
 };
 
 // Multiplication, division and modulo operator charactes
@@ -173,12 +173,6 @@ FactorOp: Opcode = {
     "%" => Opcode::Mod,
 };
 
-// Function
-CallTerm: Expr = {
-    <l: @L> <e:CallTerm> "(" <l1:@L> <c: Comma<Expr>> <r1:@R> ")" <r:@R> =>
-          Expr::func_call(l, e, Expr::tuple(l1, c, r1), r),
-    CustomBinOp,
-}
 
 // Unary operations
 UnaryOp: UnaryOp = {
@@ -204,7 +198,7 @@ CustomOperator: OperatorChars = {
 
 // Custom defined binary expressions
 CustomBinOp: Expr = {
-    <l:@L> <le:CustomBinOp> <o: CustomOperator> <re:UnaryExpr> <r:@R> =>? {
+    <l:@L> <le:CustomBinOp> <o: CustomOperator> <re:CustomUnaryOp> <r:@R> =>? {
         if state.binary_ops.contains(&o) {
             Ok(Expr::custom_op(<>))
         } else {
@@ -232,7 +226,14 @@ CustomUnaryOp: Expr = {
 
 // Built in unary expressions
 UnaryExpr: Expr = {
-    @L UnaryOp Term @R => Expr::unary(<>),
+    @L UnaryOp CallTerm @R => Expr::unary(<>),
+    CallTerm,
+}
+
+// Function
+CallTerm: Expr = {
+    <l: @L> <e:CallTerm> "(" <l1:@L> <c: Comma<Expr>> <r1:@R> ")" <r:@R> =>
+          Expr::func_call(l, e, Expr::tuple(l1, c, r1), r),
     Term,
 }
 

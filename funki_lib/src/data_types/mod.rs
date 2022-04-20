@@ -8,9 +8,9 @@ use itertools::Itertools;
 
 use crate::ast::Pattern;
 use crate::external_operators::CustomType;
-use crate::{Argument, ReturnVal, Template};
+use crate::{Argument, Program, ReturnVal};
 
-// Errors from the interpreter, can optionally have location information added
+/// Errors from the interpreter, can optionally have location information added
 #[derive(Clone)]
 pub struct InterpretError {
   pub message: String,
@@ -105,6 +105,7 @@ impl<C: CustomType> InterpretVal<C> {
       Argument::Int(x) => InterpretVal::Int(*x),
       Argument::String(s) => InterpretVal::String(s.clone()),
       Argument::Tuple(v) => InterpretVal::Tuple(v.iter().map(InterpretVal::from_arg).collect()),
+      Argument::List(v) => InterpretVal::List(v.iter().map(InterpretVal::from_arg).collect()),
       Argument::Custom(c) => InterpretVal::Custom(c.clone()),
     }
   }
@@ -405,7 +406,7 @@ impl<C: CustomType> Frame<C> {
   }
 
   // Builds a new frame from a template
-  pub fn from_template(t: &Template) -> Self {
+  pub fn from_template(t: &Program) -> Self {
     Self {
       frame: t
         .env
