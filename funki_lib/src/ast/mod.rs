@@ -21,7 +21,7 @@ impl ParserState {
 }
 
 // Template
-pub struct Template {
+pub struct Program {
   pub env: HashMap<String, Vec<Pattern>>,
 }
 
@@ -266,7 +266,7 @@ impl Debug for Pattern {
   }
 }
 
-impl Debug for Template {
+impl Debug for Program {
   fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
     let mut funcs: Vec<&String> = self.env.keys().into_iter().collect();
     funcs.sort();

@@ -13,8 +13,8 @@ fn blank<C: CustomType>() -> InterpretVal<C> {
 #[test]
 fn test_interpret() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
-  let temp = TemplateParser::new()
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\n5;")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", blank(), &Customs::new());
@@ -26,8 +26,8 @@ fn test_interpret() {
 #[test]
 fn test_lambda() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
-  let temp = TemplateParser::new()
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\n|x => 5|();")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", blank(), &Customs::new());
@@ -40,8 +40,8 @@ fn test_lambda() {
 #[test]
 fn test_func() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
-  let temp = TemplateParser::new()
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#one 1;#main\none();")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", blank(), &Customs::new());
@@ -54,8 +54,8 @@ fn test_func() {
 #[test]
 fn test_interpolation() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
-  let temp = TemplateParser::new()
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\nf\"test{2}test{5}\"f;")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", blank(), &Customs::new());
@@ -68,8 +68,8 @@ fn test_interpolation() {
 #[test]
 fn test_add_sub() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
-  let temp = TemplateParser::new()
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#main\nf\"test{2+2} {4-3} {2--1}\"f + \"test\";",
@@ -85,8 +85,8 @@ fn test_add_sub() {
 #[test]
 fn test_mult_div() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
-  let temp = TemplateParser::new()
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#main\n f\"test{2*3} {10/3} {\"test\" * 2}\"f;",
@@ -189,9 +189,9 @@ fn test_pattern_match() {
 #[test]
 fn test_args() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#one x -> x + 1;#main\none(2);")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", InterpretVal::Tuple(vec![]), &Customs::new());
@@ -204,9 +204,9 @@ fn test_args() {
 #[test]
 fn test_pattern_match_func() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#main (x, 1) -> x - 1; (x, y) -> x + y;x -> x + 1; ",
@@ -239,9 +239,9 @@ fn test_pattern_match_func() {
 #[test]
 fn test_eq() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#one x -> x == 1;#main\none(1);")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", InterpretVal::Tuple(vec![]), &Customs::new());
@@ -249,7 +249,7 @@ fn test_eq() {
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Bool(true)");
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#one x -> x == (1, 2); #main\none(1, 2);",
@@ -260,7 +260,7 @@ fn test_eq() {
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "Bool(true)");
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#one x -> x == (1, 2); #main\none(1, 3);",
@@ -276,9 +276,9 @@ fn test_eq() {
 #[test]
 fn test_guards() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\nx -> 2|x==3;y -> 5;")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", InterpretVal::Int(2), &Customs::new());
@@ -296,9 +296,9 @@ fn test_guards() {
 #[test]
 fn test_escapes() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\n\"\\{\\}\\\\\";")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", InterpretVal::Tuple(vec![]), &Customs::new());
@@ -306,7 +306,7 @@ fn test_escapes() {
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.ok().unwrap()), "String({}\\)");
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\nx -> f\"\\{\\} {x} \\\\\"f;")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", InterpretVal::Int(5), &Customs::new());
@@ -319,9 +319,9 @@ fn test_escapes() {
 #[test]
 fn test_error() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\n 5 + \"hi\";")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", InterpretVal::Tuple(vec![]), &Customs::new());
@@ -337,9 +337,9 @@ fn test_error() {
 #[test]
 fn test_builtin() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\nget(list(1, 4, 9, 11), 2);")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", InterpretVal::Tuple(vec![]), &Customs::new());
@@ -347,7 +347,7 @@ fn test_builtin() {
   // assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.unwrap()), "Int(9)");
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\nget(list(1, 4), 2);")
     .unwrap();
   let res = interpret::<BlankCustom>(&temp, "main", InterpretVal::Tuple(vec![]), &Customs::new());
@@ -369,9 +369,9 @@ fn test_builtin() {
 #[test]
 fn test_map() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\n x -> map(x, |i => i + 1|);")
     .unwrap();
   let res = interpret::<BlankCustom>(
@@ -396,9 +396,9 @@ fn test_map() {
 #[test]
 fn test_filter() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#main\n x -> filter(x, |i => i % 3 == 0|);",
@@ -431,9 +431,9 @@ fn test_filter() {
 #[test]
 fn test_length() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(&ParserState::new(), "#main\n x -> len(x);")
     .unwrap();
   let res = interpret::<BlankCustom>(
@@ -460,9 +460,9 @@ fn test_length() {
 #[test]
 fn test_any() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#main\n x -> any(x, |i => i % 3 == 0|);",
@@ -487,7 +487,7 @@ fn test_any() {
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.unwrap()), "Bool(true)");
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#main\n x -> any(x, |i => i % 3 == 0|);",
@@ -513,9 +513,9 @@ fn test_any() {
 #[test]
 fn test_all() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#main\n x -> all(x, |i => i % 3 == 0|);",
@@ -540,7 +540,7 @@ fn test_all() {
   assert!(res.is_ok());
   assert_eq!(format!("{:?}", res.unwrap()), "Bool(false)");
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#main\n x -> all(x, |i => i % 3 == 0|);",
@@ -566,9 +566,9 @@ fn test_all() {
 #[test]
 fn test_fold() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#main\n x -> fold(x, 0, |a, i => a + i|);",
@@ -598,9 +598,9 @@ fn test_fold() {
 #[test]
 fn test_closure() {
   use crate::interpreter::interpret;
-  use crate::{BlankCustom, Customs, ParserState, TemplateParser};
+  use crate::{BlankCustom, Customs, ParserState, ProgramParser};
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState::new(),
       "#closure y -> |a => a + y|; #main\n x -> closure(3)(x);",
@@ -617,12 +617,10 @@ fn test_closure() {
 fn test_custom_builtin_binary_operators() {
   use crate::interpreter::interpret;
   use crate::OperatorChars;
-  use crate::{
-    Argument, BlankCustom, CustomBinOp, Customs, ParserState, ReturnVal, TemplateParser,
-  };
+  use crate::{Argument, BlankCustom, CustomBinOp, Customs, ParserState, ProgramParser, ReturnVal};
   use std::collections::HashMap;
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState {
         unary_ops: vec![],
@@ -662,11 +660,11 @@ fn test_custom_builtin_unary_operators() {
   use crate::interpreter::interpret;
   use crate::OperatorChars;
   use crate::{
-    Argument, BlankCustom, CustomUnaryOp, Customs, ParserState, ReturnVal, TemplateParser,
+    Argument, BlankCustom, CustomUnaryOp, Customs, ParserState, ProgramParser, ReturnVal,
   };
   use std::collections::HashMap;
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState {
         unary_ops: vec![OperatorChars::Carat],
@@ -705,11 +703,11 @@ fn test_custom_builtin_unary_operators() {
 fn test_custom_builtin_functions() {
   use crate::interpreter::interpret;
   use crate::{
-    Argument, BlankCustom, CustomBuiltIn, Customs, ParserState, ReturnVal, TemplateParser,
+    Argument, BlankCustom, CustomBuiltIn, Customs, ParserState, ProgramParser, ReturnVal,
   };
   use std::collections::HashMap;
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState {
         unary_ops: vec![],
@@ -747,7 +745,7 @@ fn test_custom_builtin_functions() {
 #[test]
 fn test_custom_types() {
   use crate::interpreter::interpret;
-  use crate::{Argument, CustomBuiltIn, Customs, ParserState, ReturnVal, TemplateParser};
+  use crate::{Argument, CustomBuiltIn, Customs, ParserState, ProgramParser, ReturnVal};
   use std::collections::HashMap;
 
   #[derive(Clone, Debug, PartialEq)]
@@ -775,7 +773,7 @@ fn test_custom_types() {
     }
   }
 
-  let temp = TemplateParser::new()
+  let temp = ProgramParser::new()
     .parse(
       &ParserState {
         unary_ops: vec![],

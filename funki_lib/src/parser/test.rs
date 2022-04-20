@@ -362,7 +362,7 @@ fn test_template() {
   assert_eq!(
     format!(
       "{:?}",
-      language_definition::TemplateParser::new()
+      language_definition::ProgramParser::new()
         .parse(&ParserState::new(), "#main\n  x -> true;\n")
         .unwrap()
     ),
@@ -371,7 +371,7 @@ fn test_template() {
   assert_eq!(
     format!(
       "{:?}",
-      language_definition::TemplateParser::new()
+      language_definition::ProgramParser::new()
         .parse(
           &ParserState::new(),
           "#main\n x -> true;\n #second\n y -> false;\n",
@@ -383,7 +383,7 @@ fn test_template() {
   assert_eq!(
     format!(
       "{:?}",
-      language_definition::TemplateParser::new()
+      language_definition::ProgramParser::new()
         .parse(
           &ParserState::new(),
           "#main\n x -> true ;\n\n\n #second\n y -> false;\n",
@@ -416,7 +416,7 @@ test -> 6;";
     assert_eq!(
       format!(
         "{:?}",
-        language_definition::TemplateParser::new()
+        language_definition::ProgramParser::new()
           .parse(&ParserState::new(), test_str)
           .unwrap()
       ),
@@ -437,7 +437,7 @@ fn test_custom_bin_operators() {
 (a, b) -> a ? b;
 ";
 
-  let parser = language_definition::TemplateParser::new();
+  let parser = language_definition::ProgramParser::new();
   let res_1 = parser.parse(&ParserState::new(), test_str);
   assert!(res_1.is_err());
   assert_eq!(
@@ -471,7 +471,7 @@ fn test_custom_unary_operators() {
 a -> ?a;
 ";
 
-  let parser = language_definition::TemplateParser::new();
+  let parser = language_definition::ProgramParser::new();
   let res_1 = parser.parse(&ParserState::new(), test_str);
   assert!(res_1.is_err());
   assert_eq!(
@@ -488,4 +488,31 @@ a -> ?a;
   );
   assert!(res_2.is_ok());
   assert_eq!(format!("{:?}", res_2), "Ok(#main a -> CustomOp(? a))")
+}
+
+// Test for custom operator evaluation order
+#[test]
+fn test_custom_op_order() {
+  use crate::parser::language_definition;
+  use crate::OperatorChars;
+  use crate::ParserState;
+
+  let test_str = "\
+#main
+a -> a & ?b * ^d;
+";
+
+  let parser = language_definition::ProgramParser::new();
+  let res = parser.parse(
+    &ParserState {
+      unary_ops: vec![OperatorChars::QuestionMark, OperatorChars::Carat],
+      binary_ops: vec![OperatorChars::And],
+    },
+    test_str,
+  );
+  assert!(dbg!(&res).is_ok());
+  assert_eq!(
+    format!("{:?}", res),
+    "Ok(#main a -> (CustomOp(a & CustomOp(? b)) * CustomOp(^ d)))"
+  )
 }

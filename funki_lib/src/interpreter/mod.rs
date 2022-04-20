@@ -13,7 +13,7 @@ use crate::{CustomBinOp, CustomType, CustomUnaryOp, OperatorChars, ReturnVal};
 mod builtins;
 mod test;
 
-/// Stores the current custom operators in the language
+// Stores the current custom operators in the language
 pub struct Customs<C: CustomType> {
   bin_ops: HashMap<OperatorChars, CustomBinOp<C>>,
   unary_ops: HashMap<OperatorChars, CustomUnaryOp<C>>,
@@ -45,7 +45,7 @@ impl<C: CustomType> Customs<C> {
 
 // Interprets a specific top-level function in a template
 pub fn interpret<C: CustomType>(
-  temp: &Template,
+  temp: &Program,
   name: &str,
   arg: InterpretVal<C>,
   customs: &Customs<C>,
@@ -83,6 +83,10 @@ fn interpret_recurse<C: CustomType>(
         let res = interpret_recurse(&*e, env, customs)?;
         if let InterpretVal::Bool(e) = res {
           Ok(InterpretVal::Bool(!e))
+        } else if let InterpretVal::Custom(c) = res {
+          c.pre_not()
+            .map(|v| InterpretVal::from_arg(&v))
+            .map_err(|e| InterpretError::new(&e.to_string()))
         } else {
           Err(InterpretError::new(
             "Tried to apply '!' to a non boolean value.",
@@ -93,6 +97,10 @@ fn interpret_recurse<C: CustomType>(
         let res = interpret_recurse(&*e, env, customs)?;
         if let InterpretVal::Int(i) = res {
           Ok(InterpretVal::Int(-i))
+        } else if let InterpretVal::Custom(c) = res {
+          c.pre_neg()
+            .map(|v| InterpretVal::from_arg(&v))
+            .map_err(|e| InterpretError::new(&e.to_string()))
         } else {
           Err(InterpretError::new(
             "Tried to apply '-' to a non int value.",
@@ -288,5 +296,40 @@ fn interpret_lambda<C: CustomType>(
     Err(InterpretError::new(
       "Lambda function did not match pattern.",
     ))
+  }
+}
+
+impl<C: CustomType> CustomBinOp<C> {
+  fn call_func(
+    &self,
+    val1: &InterpretVal<C>,
+    val2: &InterpretVal<C>,
+  ) -> Result<InterpretVal<C>, InterpretError> {
+    let arg1 = val1.clone().unwrap_tuple().to_return_val()?;
+    let arg2 = val2.clone().unwrap_tuple().to_return_val()?;
+
+    (self.function)(arg1, arg2)
+      .map_err(|e| InterpretError::new(&e.to_string()))
+      .map(|v| InterpretVal::from_arg(&v))
+  }
+}
+
+impl<C: CustomType> CustomUnaryOp<C> {
+  fn call_func(&self, val1: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+    let arg1 = val1.clone().unwrap_tuple().to_return_val()?;
+
+    (self.function)(arg1)
+      .map_err(|e| InterpretError::new(&e.to_string()))
+      .map(|v| InterpretVal::from_arg(&v))
+  }
+}
+
+impl<C: CustomType> CustomBuiltIn<C> {
+  fn call_func(&self, val1: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+    let arg1 = val1.clone().unwrap_tuple().to_return_val()?;
+
+    (self.function)(arg1)
+      .map_err(|e| InterpretError::new(&e.to_string()))
+      .map(|v| InterpretVal::from_arg(&v))
   }
 }

@@ -9,13 +9,13 @@ use std::fmt::{Debug, Formatter};
 use itertools::Itertools;
 use lalrpop_util::ParseError;
 
-use crate::ast::{ParserState, Template};
+use crate::ast::{ParserState, Program};
 use crate::data_types::{InterpretError, InterpretVal};
 use crate::external_operators::{
   CustomBinOp, CustomBuiltIn, CustomType, CustomUnaryOp, OperatorChars,
 };
 use crate::interpreter::{interpret, Customs};
-use crate::parser::language_definition::TemplateParser;
+use crate::parser::language_definition::ProgramParser;
 
 mod ast;
 mod data_types;
@@ -34,9 +34,9 @@ pub struct Language<C: CustomType> {
 
 /// Represents a set of template functions
 #[derive(Debug)]
-pub struct ParsedTemplate<C: CustomType> {
+pub struct Script<C: CustomType> {
   lang: String,
-  temp: Template,
+  temp: Program,
   unary_operators: HashMap<OperatorChars, CustomUnaryOp<C>>,
   binary_operators: HashMap<OperatorChars, CustomBinOp<C>>,
   built_ins: HashMap<String, CustomBuiltIn<C>>,
@@ -44,9 +44,16 @@ pub struct ParsedTemplate<C: CustomType> {
 
 /// Represents an argument being parsed in to a function call
 pub enum Argument<C: CustomType> {
+  /// Basic integer type
   Int(i32),
+  /// Basic String type
   String(String),
+  /// Tuple type
   Tuple(Vec<Argument<C>>),
+  /// List type
+  List(Vec<Argument<C>>),
+  /// Custom data types.
+  /// If multiple data types are required use aan enum type for the custom type.
   Custom(C),
 }
 
@@ -56,6 +63,7 @@ impl<C: CustomType> Clone for Argument<C> {
       Argument::Int(i) => Argument::Int(*i),
       Argument::String(s) => Argument::String(s.clone()),
       Argument::Tuple(t) => Argument::Tuple(t.clone()),
+      Argument::List(t) => Argument::List(t.clone()),
       Argument::Custom(c) => Argument::Custom(c.clone()),
     }
   }
@@ -64,7 +72,7 @@ impl<C: CustomType> Clone for Argument<C> {
 /// Represents a function from a template
 /// Can contain an argument also
 pub struct LangFunc<'a, C: CustomType> {
-  lang: &'a ParsedTemplate<C>,
+  lang: &'a Script<C>,
   name: String,
   arg: Option<Argument<C>>,
   text: String,
@@ -85,32 +93,36 @@ impl<C: CustomType> Language<C> {
     }
   }
 
+  /// Adds a custom binary operator to the Language
   pub fn add_bin_op(&mut self, char: OperatorChars, op: CustomBinOp<C>) -> &Self {
     self.binary_operators.entry(char).or_insert(op);
     self
   }
 
+  /// Adds a custom unary operator to the Language
   pub fn add_unary_op(&mut self, char: OperatorChars, op: CustomUnaryOp<C>) -> &Self {
     self.unary_operators.entry(char).or_insert(op);
     self
   }
 
+  /// Adds a custom builtin function to the Language
   pub fn add_custom_function(&mut self, name: String, func: CustomBuiltIn<C>) -> &Self {
     self.built_ins.entry(name).or_insert(func);
     self
   }
 
-  pub fn parse(&self, code: String) -> Result<ParsedTemplate<C>, LanguageErr> {
-    let parser = TemplateParser::new();
+  /// Parses a set of code into a template
+  pub fn parse(&self, code: String) -> Result<Script<C>, LanguageErr> {
+    let parser = ProgramParser::new();
     let parser_state = ParserState {
       unary_ops: self.unary_operators.keys().cloned().collect(),
       binary_ops: self.binary_operators.keys().cloned().collect(),
     };
-    let res: Result<Template, ParseError<usize, _, (usize, String, usize)>> =
+    let res: Result<Program, ParseError<usize, _, (usize, String, usize)>> =
       parser.parse(&parser_state, &code);
 
     match res {
-      Ok(l) => Ok(ParsedTemplate {
+      Ok(l) => Ok(Script {
         temp: l,
         lang: code,
         unary_operators: self.unary_operators.clone(),
@@ -125,16 +137,16 @@ impl<C: CustomType> Language<C> {
   }
 }
 
-impl<C: CustomType> ParsedTemplate<C> {
+impl<C: CustomType> Script<C> {
   /// Builds a language from a code string
   ///
   /// ## Example
   /// ```
-  /// use funki_templates::{ParsedTemplate, BlankCustom};
-  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main x -> x + 1;");
+  /// use funki_templates::{Script, BlankCustom};
+  /// let x = Script::<BlankCustom>::from_text("#main x -> x + 1;");
   /// ```
   pub fn from_text(lang: &str) -> Result<Self, LanguageErr> {
-    let parser: TemplateParser = TemplateParser::new();
+    let parser: ProgramParser = ProgramParser::new();
     let res = parser.parse(&ParserState::new(), lang);
     match res {
       Ok(l) => Ok(Self {
@@ -158,20 +170,19 @@ impl<C: CustomType> ParsedTemplate<C> {
   ///
   /// ## Example
   /// ```
-  /// use funki_templates::{ParsedTemplate, BlankCustom};
-  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main x -> x + 1;").unwrap();
+  /// use funki_templates::{Script, BlankCustom};
+  /// let x = Script::<BlankCustom>::from_text("#main x -> x + 1;").unwrap();
   /// x.list(); // -> ["main"]
   /// ```
   pub fn list(&self) -> Vec<String> {
     return self.temp.env.keys().map(|s| s.to_string()).collect();
   }
 
-  /// Selects a function from the template
+  /// Selects a function from the ParsedTemplatete
   ///
-  /// ## Example
-  /// ```
-  /// use funki_templates::{ParsedTemplate, BlankCustom};
-  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main x -> x + 1;").unwrap();
+  /// ## ExamParsedTemplate/// ```
+  /// use funki_templates::{Script, BlankCustom};
+  /// let x = Script::<BlankCustom>::from_text("#main x -> x + 1;").unwrap();
   /// let f = x.function("main");
   /// ```
   pub fn function(&self, name: &str) -> Result<LangFunc<C>, LanguageErr> {
@@ -192,7 +203,7 @@ impl<C: CustomType> ParsedTemplate<C> {
 }
 
 /// Type for the values returned from the interpretation
-pub enum ReturnVal<T> {
+pub enum ReturnVal<T: CustomType> {
   String(String),
   Int(i32),
   Bool(bool),
@@ -202,12 +213,12 @@ pub enum ReturnVal<T> {
 }
 
 impl<'a, C: CustomType> LangFunc<'a, C> {
-  /// Adds an argument for a function call
+  /// Adds an argument for aParsedTemplateion call
   ///
-  /// ## Example
+  /// #ParsedTemplateple
   /// ```
-  /// use funki_templates::{Argument, ParsedTemplate, BlankCustom};
-  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main x -> x + 4;").unwrap();
+  /// use funki_templates::{Argument, Script, BlankCustom};
+  /// let x = Script::<BlankCustom>::from_text("#main x -> x + 4;").unwrap();
   /// let f = x.function("main").unwrap();
   /// let f = f.arg(Argument::Int(5));
   /// f.call().unwrap(); // -> ReturnVal::Int(9)
@@ -217,12 +228,11 @@ impl<'a, C: CustomType> LangFunc<'a, C> {
     self
   }
   /// Interprets this function
-  /// Can return a language error if the interpretation fails
-  ///
+  /// Can return a language errParsedTemplatethe interpretation faiParsedTemplate//
   /// ## Example
   /// ```
-  /// use funki_templates::{Language, ParsedTemplate, BlankCustom};
-  /// let x = ParsedTemplate::<BlankCustom>::from_text("#main 5;").unwrap();
+  /// use funki_templates::{Language, Script, BlankCustom};
+  /// let x = Script::<BlankCustom>::from_text("#main 5;").unwrap();
   /// let f = x.function("main").unwrap();
   /// f.call().unwrap(); // -> ReturnVal::Int(5)
   /// ```
