@@ -3,6 +3,8 @@ name = "funki_lang"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
+description = "A customisable embeddable functional langauge."
+license = "Apache License, Version 2.0"
 
 [build-dependencies]
 lalrpop = "0.19.7"
