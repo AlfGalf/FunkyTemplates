@@ -142,7 +142,7 @@ impl Script<BlankCustom> {
   ///
   /// ## Example
   /// ```
-  /// use funki_templates::{Script, BlankCustom};
+  /// use funki_lang::{Script, BlankCustom};
   /// let x = Script::<BlankCustom>::from_text("#main x -> x + 1;");
   /// ```
   pub fn from_text(lang: &str) -> Result<Self, LanguageErr> {
@@ -172,7 +172,7 @@ impl<C: CustomType> Script<C> {
   ///
   /// ## Example
   /// ```
-  /// use funki_templates::{Script, BlankCustom};
+  /// use funki_lang::{Script, BlankCustom};
   /// let x = Script::<BlankCustom>::from_text("#main x -> x + 1;").unwrap();
   /// x.list(); // -> ["main"]
   /// ```
@@ -219,7 +219,7 @@ impl<'a, C: CustomType> LangFunc<'a, C> {
   ///
   /// #ParsedTemplateple
   /// ```
-  /// use funki_templates::{Argument, Script, BlankCustom};
+  /// use funki_lang::{Argument, Script, BlankCustom};
   /// let x = Script::<BlankCustom>::from_text("#main x -> x + 4;").unwrap();
   /// let f = x.function("main").unwrap();
   /// let f = f.arg(Argument::Int(5));
@@ -233,7 +233,7 @@ impl<'a, C: CustomType> LangFunc<'a, C> {
   /// Can return a language errParsedTemplatethe interpretation faiParsedTemplate//
   /// ## Example
   /// ```
-  /// use funki_templates::{Language, Script, BlankCustom};
+  /// use funki_lang::{Language, Script, BlankCustom};
   /// let x = Script::<BlankCustom>::from_text("#main 5;").unwrap();
   /// let f = x.function("main").unwrap();
   /// f.call().unwrap(); // -> ReturnVal::Int(5)

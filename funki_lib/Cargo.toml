@@ -1,5 +1,5 @@
 [package]
-name = "funki_templates"
+name = "funki_lang"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
