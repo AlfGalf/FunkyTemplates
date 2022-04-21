@@ -137,7 +137,7 @@ impl<C: CustomType> Language<C> {
   }
 }
 
-impl<C: CustomType> Script<C> {
+impl Script<BlankCustom> {
   /// Builds a language from a code string
   ///
   /// ## Example
@@ -165,7 +165,9 @@ impl<C: CustomType> Script<C> {
       }
     }
   }
+}
 
+impl<C: CustomType> Script<C> {
   /// Lists the available functions
   ///
   /// ## Example
