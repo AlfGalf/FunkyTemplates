@@ -617,7 +617,7 @@ fn test_closure() {
 fn test_custom_builtin_binary_operators() {
   use crate::interpreter::interpret;
   use crate::OperatorChars;
-  use crate::{Argument, BlankCustom, CustomBinOp, Customs, ParserState, ProgramParser, ReturnVal};
+  use crate::{Argument, BlankCustom, CustomBinOp, Customs, ParserState, ProgramParser};
   use std::collections::HashMap;
 
   let temp = ProgramParser::new()
@@ -638,7 +638,7 @@ fn test_custom_builtin_binary_operators() {
         OperatorChars::Carat,
         CustomBinOp {
           function: |l, r| {
-            if let (ReturnVal::Int(l), ReturnVal::Int(r)) = (l, r) {
+            if let (Argument::Int(l), Argument::Int(r)) = (l, r) {
               Ok(Argument::Int(l.pow(r as u32)))
             } else {
               panic!()
@@ -659,9 +659,7 @@ fn test_custom_builtin_binary_operators() {
 fn test_custom_builtin_unary_operators() {
   use crate::interpreter::interpret;
   use crate::OperatorChars;
-  use crate::{
-    Argument, BlankCustom, CustomUnaryOp, Customs, ParserState, ProgramParser, ReturnVal,
-  };
+  use crate::{Argument, BlankCustom, CustomUnaryOp, Customs, ParserState, ProgramParser};
   use std::collections::HashMap;
 
   let temp = ProgramParser::new()
@@ -683,7 +681,7 @@ fn test_custom_builtin_unary_operators() {
         OperatorChars::Carat,
         CustomUnaryOp {
           function: |l| {
-            if let ReturnVal::Int(l) = l {
+            if let Argument::Int(l) = l {
               Ok(Argument::Int(l + 5))
             } else {
               panic!()
@@ -702,9 +700,7 @@ fn test_custom_builtin_unary_operators() {
 #[test]
 fn test_custom_builtin_functions() {
   use crate::interpreter::interpret;
-  use crate::{
-    Argument, BlankCustom, CustomBuiltIn, Customs, ParserState, ProgramParser, ReturnVal,
-  };
+  use crate::{Argument, BlankCustom, CustomBuiltIn, Customs, ParserState, ProgramParser};
   use std::collections::HashMap;
 
   let temp = ProgramParser::new()
@@ -727,7 +723,7 @@ fn test_custom_builtin_functions() {
         "test".to_string(),
         CustomBuiltIn {
           function: |a| {
-            if let ReturnVal::Int(a) = a {
+            if let Argument::Int(a) = a {
               Ok(Argument::Int(a + 5))
             } else {
               panic!()
@@ -745,7 +741,7 @@ fn test_custom_builtin_functions() {
 #[test]
 fn test_custom_types() {
   use crate::interpreter::interpret;
-  use crate::{Argument, CustomBuiltIn, Customs, ParserState, ProgramParser, ReturnVal};
+  use crate::{Argument, CustomBuiltIn, Customs, ParserState, ProgramParser};
   use std::collections::HashMap;
 
   #[derive(Clone, Debug, PartialEq)]
@@ -761,8 +757,8 @@ fn test_custom_types() {
   }
 
   impl CustomType for Custom {
-    fn pre_add(&self, r: ReturnVal<Custom>) -> Result<Argument<Custom>, Box<dyn ToString>> {
-      if let ReturnVal::Int(i) = r {
+    fn pre_add(&self, r: Argument<Custom>) -> Result<Argument<Custom>, Box<dyn ToString>> {
+      if let Argument::Int(i) = r {
         Ok(Argument::Custom(Self {
           num: self.num + self.denom * i,
           denom: self.denom,
@@ -793,12 +789,12 @@ fn test_custom_types() {
         "frac".to_string(),
         CustomBuiltIn {
           function: |a| {
-            if let ReturnVal::Tuple(v) = a {
+            if let Argument::Tuple(v) = a {
               if v.len() == 2 {
                 let v1 = v.get(0).unwrap();
                 let v2 = v.get(1).unwrap();
 
-                if let (ReturnVal::Int(n), ReturnVal::Int(d)) = (v1, v2) {
+                if let (Argument::Int(n), Argument::Int(d)) = (v1, v2) {
                   Ok(Argument::Custom(Custom { num: *n, denom: *d }))
                 } else {
                   Err(Box::new("Err 1"))

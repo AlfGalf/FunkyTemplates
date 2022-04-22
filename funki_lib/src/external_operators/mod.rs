@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::{Argument, ReturnVal};
+use crate::Argument;
 
 /// The available characters for custom operators to be assigned.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -44,7 +44,7 @@ impl ToString for OperatorChars {
 pub struct CustomBinOp<C: CustomType> {
   /// The function that gets called to evaluate this operator.
   /// Both the arguments are evaluated before the function is called.
-  pub function: fn(ReturnVal<C>, ReturnVal<C>) -> Result<Argument<C>, Box<dyn ToString>>,
+  pub function: fn(Argument<C>, Argument<C>) -> Result<Argument<C>, Box<dyn ToString>>,
 }
 
 /// A custom unary operator.
@@ -52,7 +52,7 @@ pub struct CustomBinOp<C: CustomType> {
 pub struct CustomUnaryOp<C: CustomType> {
   /// The function that gets called to evaluate this operator.
   /// The argument is evaluated before the function is called.
-  pub function: fn(ReturnVal<C>) -> Result<Argument<C>, Box<dyn ToString>>,
+  pub function: fn(Argument<C>) -> Result<Argument<C>, Box<dyn ToString>>,
 }
 
 /// A custom builtin function.
@@ -61,7 +61,7 @@ pub struct CustomBuiltIn<C: CustomType> {
   /// The function that gets called to evaluate a function call with this builtin.
   /// The argument is evaluated before the function is called.
   /// If multiple arguments are provided they are wrapped in a tuple.
-  pub function: fn(ReturnVal<C>) -> Result<Argument<C>, Box<dyn ToString>>,
+  pub function: fn(Argument<C>) -> Result<Argument<C>, Box<dyn ToString>>,
 }
 
 // Helper function
@@ -78,107 +78,107 @@ fn bool_not_defined_err() -> Result<bool, Box<dyn ToString>> {
 /// Defines its behaviour in operations
 pub trait CustomType: Clone + Debug + ToString + PartialEq {
   /// Behaviour of `this + arg`
-  fn pre_add(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn pre_add(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `arg + this`
-  fn post_add(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn post_add(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `this - arg`
-  fn pre_sub(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn pre_sub(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `arg - this`
-  fn post_sub(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn post_sub(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `this * arg`
-  fn pre_mult(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn pre_mult(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `arg * this`
-  fn post_mult(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn post_mult(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `this / arg`
-  fn pre_div(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn pre_div(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `arg / this`
-  fn post_div(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn post_div(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `this % arg`
-  fn pre_mod(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn pre_mod(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `arg % this`
-  fn post_mod(&self, _: ReturnVal<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
+  fn post_mod(&self, _: Argument<Self>) -> Result<Argument<Self>, Box<dyn ToString>> {
     not_defined_err()
   }
   /// Behaviour of `this == arg`
-  fn pre_eq(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn pre_eq(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `arg == this`
-  fn post_eq(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn post_eq(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `this != arg`
-  fn pre_neq(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn pre_neq(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `arg != this`
-  fn post_neq(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn post_neq(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `this < arg`
-  fn pre_lt(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn pre_lt(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `arg < this`
-  fn post_lt(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn post_lt(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `this > arg`
-  fn pre_gt(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn pre_gt(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `arg > this`
-  fn post_gt(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn post_gt(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `this <= arg`
-  fn pre_leq(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn pre_leq(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `arg <= this`
-  fn post_leq(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn post_leq(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `this >= arg`
-  fn pre_geq(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn pre_geq(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `arg >= this`
-  fn post_geq(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn post_geq(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `this && arg`
-  fn pre_and(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn pre_and(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `arg && this`
-  fn post_and(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn post_and(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `this || arg`
-  fn pre_or(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn pre_or(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `arg || this`
-  fn post_or(&self, _: ReturnVal<Self>) -> Result<bool, Box<dyn ToString>> {
+  fn post_or(&self, _: Argument<Self>) -> Result<bool, Box<dyn ToString>> {
     bool_not_defined_err()
   }
   /// Behaviour of `!this`

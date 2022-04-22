@@ -510,7 +510,7 @@ a -> a & ?b * ^d;
     },
     test_str,
   );
-  assert!(dbg!(&res).is_ok());
+  assert!(res.is_ok());
   assert_eq!(
     format!("{:?}", res),
     "Ok(#main a -> (CustomOp(a & CustomOp(? b)) * CustomOp(^ d)))"

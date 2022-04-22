@@ -8,7 +8,7 @@ use crate::ast::*;
 use crate::data_types::*;
 use crate::external_operators::CustomBuiltIn;
 use crate::interpreter::builtins::built_in;
-use crate::{CustomBinOp, CustomType, CustomUnaryOp, OperatorChars, ReturnVal};
+use crate::{Argument, CustomBinOp, CustomType, CustomUnaryOp, OperatorChars};
 
 mod builtins;
 mod test;
@@ -49,7 +49,7 @@ pub fn interpret<C: CustomType>(
   name: &str,
   arg: InterpretVal<C>,
   customs: &Customs<C>,
-) -> Result<ReturnVal<C>, InterpretError> {
+) -> Result<Argument<C>, InterpretError> {
   let res = {
     let frame = Frame::<C>::from_template(temp);
     if let Ok(func) = frame.find(name) {
@@ -257,7 +257,7 @@ fn pattern_match<C: CustomType>(
 }
 
 // Interprets a function
-fn interpret_function<C: CustomType>(
+pub fn interpret_function<C: CustomType>(
   func: &[Pattern],
   env: &mut Frame<C>,
   arg: InterpretVal<C>,

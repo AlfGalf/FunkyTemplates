@@ -8,7 +8,8 @@ use itertools::Itertools;
 
 use crate::ast::Pattern;
 use crate::external_operators::CustomType;
-use crate::{Argument, Program, ReturnVal};
+use crate::interpreter::interpret_function;
+use crate::{interpret, Argument, Customs, Program};
 
 /// Errors from the interpreter, can optionally have location information added
 #[derive(Clone)]
@@ -53,6 +54,7 @@ pub enum InterpretVal<C: CustomType> {
   Tuple(Vec<InterpretVal<C>>),
   List(Vec<InterpretVal<C>>),
   Lambda(Pattern, Frame<C>),
+  ExternalFunc(Box<dyn Fn(Argument<C>) -> Result<Argument<C>, Box<dyn ToString>>>),
   Custom(C),
 }
 
@@ -62,11 +64,12 @@ impl<C: CustomType> Debug for InterpretVal<C> {
       InterpretVal::Int(n) => write!(f, "Int({:?})", n),
       InterpretVal::Bool(b) => write!(f, "Bool({:?})", b),
       InterpretVal::String(s) => write!(f, "String({:?})", s),
-      InterpretVal::Function(fun) => write!(f, "Function({:?})", fun),
+      InterpretVal::Function(ps) => write!(f, "Function({:?})", ps),
       InterpretVal::Tuple(t) => write!(f, "Tuple({:?})", t),
       InterpretVal::List(l) => write!(f, "List({:?})", l),
       InterpretVal::Lambda(l, _) => write!(f, "Lambda({:?})", l),
       InterpretVal::Custom(c) => write!(f, "Custom({:?})", c),
+      InterpretVal::ExternalFunc(c) => write!(f, "ExternalFunc({:?})", c),
     }
   }
 }
@@ -104,25 +107,32 @@ impl<C: CustomType> InterpretVal<C> {
     match arg {
       Argument::Int(x) => InterpretVal::Int(*x),
       Argument::String(s) => InterpretVal::String(s.clone()),
+      Argument::Bool(s) => InterpretVal::Bool(*s),
       Argument::Tuple(v) => InterpretVal::Tuple(v.iter().map(InterpretVal::from_arg).collect()),
       Argument::List(v) => InterpretVal::List(v.iter().map(InterpretVal::from_arg).collect()),
       Argument::Custom(c) => InterpretVal::Custom(c.clone()),
+      Argument::Func(c) => InterpretVal::ExternalFunc(c.clone()),
     }
   }
 
   // Adds two interpret values together
-  pub fn add_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+  pub fn add_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::String(l), r) => {
         Ok(InterpretVal::String(l.clone().add(r.to_string().as_str())))
       }
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l + r)),
       (InterpretVal::Custom(l), r) => l
-        .pre_add(r.to_return_val()?)
+        .pre_add(r.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_add(l.to_return_val()?)
+        .post_add(l.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
@@ -132,15 +142,20 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Subtracts v from this value
-  pub fn sub_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+  pub fn sub_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l - r)),
       (InterpretVal::Custom(l), r) => l
-        .pre_sub(r.to_return_val()?)
+        .pre_sub(r.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_sub(l.to_return_val()?)
+        .post_sub(l.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
@@ -150,18 +165,23 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Multiplies this value by v
-  pub fn mult_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+  pub fn mult_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l * r)),
       (InterpretVal::String(l), InterpretVal::Int(r)) => {
         Ok(InterpretVal::String(l.repeat(*r as usize)))
       }
       (InterpretVal::Custom(l), r) => l
-        .pre_mult(r.to_return_val()?)
+        .pre_mult(r.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_mult(l.to_return_val()?)
+        .post_mult(l.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
@@ -170,15 +190,20 @@ impl<C: CustomType> InterpretVal<C> {
     }
   }
 
-  pub fn div_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+  pub fn div_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l / r)),
       (InterpretVal::Custom(l), r) => l
-        .pre_div(r.to_return_val()?)
+        .pre_div(r.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_div(l.to_return_val()?)
+        .post_div(l.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
@@ -188,15 +213,20 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Finds the value of this value modulo v
-  pub fn modulo_op(&self, v: &InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+  pub fn modulo_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<InterpretVal<C>, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(InterpretVal::Int(l % r)),
       (InterpretVal::Custom(l), r) => l
-        .pre_mod(r.to_return_val()?)
+        .pre_mod(r.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_mod(l.to_return_val()?)
+        .post_mod(l.to_return_val(frame, customs)?)
         .map(|v| InterpretVal::from_arg(&v))
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
@@ -206,7 +236,12 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Checks for equivalence of this value and other
-  fn eq(&self, other: &Self) -> Result<bool, InterpretError> {
+  fn eq(
+    &self,
+    other: &Self,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<bool, InterpretError> {
     match (self.clone().unwrap_tuple(), other.clone().unwrap_tuple()) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l == r),
       (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(l == r),
@@ -216,7 +251,7 @@ impl<C: CustomType> InterpretVal<C> {
           && l
             .into_iter()
             .zip(r)
-            .map(|(l, r)| l.eq(&r))
+            .map(|(l, r)| l.eq(&r, frame, customs))
             .fold_ok(true, |l, r| l && r)?,
       ),
       (InterpretVal::Function(_), InterpretVal::Function(_)) => {
@@ -227,14 +262,14 @@ impl<C: CustomType> InterpretVal<C> {
           && l
             .into_iter()
             .zip(r)
-            .map(|(l, r)| l.eq(&r))
+            .map(|(l, r)| l.eq(&r, frame, customs))
             .fold_ok(true, |l, r| l && r)?,
       ),
       (InterpretVal::Custom(l), r) => l
-        .pre_eq(r.to_return_val()?)
+        .pre_eq(r.to_return_val(frame, customs)?)
         .map_err(|s| InterpretError::from_custom(s)),
       (l, InterpretVal::Custom(r)) => r
-        .post_eq(l.to_return_val()?)
+        .post_eq(l.to_return_val(frame, customs)?)
         .map_err(|s| InterpretError::from_custom(s)),
       (l, r) => Err(InterpretError::new(
         format!("Non matching types for equality: {:?} == {:?}", l, r).as_str(),
@@ -243,24 +278,39 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Checks for equivalence of this value and other, wrapper for other function to simplify
-  pub fn eq_op(&self, right: &Self) -> Result<bool, InterpretError> {
-    self.eq(right)
+  pub fn eq_op(
+    &self,
+    right: &Self,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<bool, InterpretError> {
+    self.eq(right, frame, customs)
   }
 
   // Checks for inverse of the eq_op function
-  pub fn neq_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
-    Ok(!self.eq(v)?)
+  pub fn neq_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<bool, InterpretError> {
+    Ok(!self.eq(v, frame, customs)?)
   }
 
   // Checks if this value can be considered less than v
-  pub fn lt_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
+  pub fn lt_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l < r),
       (InterpretVal::Custom(l), r) => l
-        .pre_lt(r.to_return_val()?)
+        .pre_lt(r.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_lt(l.to_return_val()?)
+        .post_lt(l.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Comparison of types not supported {:?} < {:?}.", l, r).as_str(),
@@ -269,14 +319,19 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Checks if this value can be considered greater than v
-  pub fn gt_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
+  pub fn gt_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l > r),
       (InterpretVal::Custom(l), r) => l
-        .pre_gt(r.to_return_val()?)
+        .pre_gt(r.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_gt(l.to_return_val()?)
+        .post_gt(l.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Comparison of types not supported {:?} > {:?}.", l, r).as_str(),
@@ -285,14 +340,19 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Checks if this value can be considered less than or equal to v
-  pub fn leq_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
+  pub fn leq_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l <= r),
       (InterpretVal::Custom(l), r) => l
-        .pre_leq(r.to_return_val()?)
+        .pre_leq(r.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_leq(l.to_return_val()?)
+        .post_leq(l.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Comparison of types not supported {:?} <= {:?}.", l, r).as_str(),
@@ -301,14 +361,19 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Checks if this value can be considered greater than or equal to v
-  pub fn geq_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
+  pub fn geq_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Int(l), InterpretVal::Int(r)) => Ok(l >= r),
       (InterpretVal::Custom(l), r) => l
-        .pre_geq(r.to_return_val()?)
+        .pre_geq(r.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_geq(l.to_return_val()?)
+        .post_geq(l.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("Comparison of types not supported {:?} >= {:?}.", l, r).as_str(),
@@ -317,14 +382,19 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Finds the result of this value and v under the logical and operator
-  pub fn and_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
+  pub fn and_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(*l && *r),
       (InterpretVal::Custom(l), r) => l
-        .pre_and(r.to_return_val()?)
+        .pre_and(r.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_and(l.to_return_val()?)
+        .post_and(l.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("And operator not supported for {:?} && {:?}.", l, r).as_str(),
@@ -333,14 +403,19 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Finds the result of this value and v under the logical or operator
-  pub fn or_op(&self, v: &InterpretVal<C>) -> Result<bool, InterpretError> {
+  pub fn or_op(
+    &self,
+    v: &InterpretVal<C>,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<bool, InterpretError> {
     match (self, v) {
       (InterpretVal::Bool(l), InterpretVal::Bool(r)) => Ok(*l || *r),
       (InterpretVal::Custom(l), r) => l
-        .pre_or(r.to_return_val()?)
+        .pre_or(r.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, InterpretVal::Custom(r)) => r
-        .post_or(l.to_return_val()?)
+        .post_or(l.to_return_val(frame, customs)?)
         .map_err(InterpretError::from_custom),
       (l, r) => Err(InterpretError::new(
         format!("And operator not supported for {:?} && {:?}.", l, r).as_str(),
@@ -349,28 +424,38 @@ impl<C: CustomType> InterpretVal<C> {
   }
 
   // Converts an interpret value to a return val that can be returned through the API
-  pub fn to_return_val(&self) -> Result<ReturnVal<C>, InterpretError> {
+  pub fn to_return_val(
+    &self,
+    frame: &Frame<C>,
+    customs: &Customs<C>,
+  ) -> Result<Argument<C>, InterpretError> {
     match self {
-      InterpretVal::Int(i) => Ok(ReturnVal::Int(*i)),
-      InterpretVal::Bool(b) => Ok(ReturnVal::Bool(*b)),
-      InterpretVal::String(s) => Ok(ReturnVal::String(s.clone())),
-      InterpretVal::Tuple(v) => Ok(ReturnVal::Tuple(
+      InterpretVal::Int(i) => Ok(Argument::Int(*i)),
+      InterpretVal::Bool(b) => Ok(Argument::Bool(*b)),
+      InterpretVal::String(s) => Ok(Argument::String(s.clone())),
+      InterpretVal::Tuple(v) => Ok(Argument::Tuple(
         v.iter()
-          .map(|x| x.to_return_val())
-          .collect::<Result<Vec<ReturnVal<C>>, InterpretError>>()?,
+          .map(|x| x.to_return_val(frame, customs))
+          .collect::<Result<Vec<Argument<C>>, InterpretError>>()?,
       )),
-      InterpretVal::List(v) => Ok(ReturnVal::List(
+      InterpretVal::List(v) => Ok(Argument::List(
         v.iter()
-          .map(|x| x.to_return_val())
-          .collect::<Result<Vec<ReturnVal<C>>, InterpretError>>()?,
+          .map(|x| x.to_return_val(frame, customs))
+          .collect::<Result<Vec<Argument<C>>, InterpretError>>()?,
       )),
-      InterpretVal::Function(_) => Err(InterpretError::new(
-        "Cannot have function return type to root.",
-      )),
+      InterpretVal::Function(ps) => Ok(Argument::Func(|a| {
+        let ps = ps.clone();
+        let frame = frame.clone();
+        let customs = customs.clone();
+        let arg = InterpretVal::from_arg(&a);
+        let res = interpret_function(ps.clone(), frame.clone(), a, customs.clone());
+        res
+      })),
       InterpretVal::Lambda(_, _) => Err(InterpretError::new(
         "Cannot have lambda return type to root.",
       )),
-      InterpretVal::Custom(c) => Ok(ReturnVal::Custom((*c).clone())),
+      InterpretVal::Custom(c) => Ok(Argument::Custom((*c).clone())),
+      InterpretVal::ExternalFunc(f) => Ok(Argument::Func(*f)),
     }
   }
 }

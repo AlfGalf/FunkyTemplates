@@ -2,7 +2,7 @@
 #[test]
 fn test_library() {
   use crate::Argument;
-  use crate::{BlankCustom, ReturnVal, Script};
+  use crate::{BlankCustom, Script};
   let lang_op = Script::<BlankCustom>::from_text("#main t -> f\"Hello {t + 3}\"f;");
   assert!(lang_op.is_ok());
   let lang = lang_op.unwrap();
@@ -14,7 +14,7 @@ fn test_library() {
       .call()
       .unwrap()
       .to_string(),
-    ReturnVal::<BlankCustom>::String("Hello 4".to_string()).to_string()
+    Argument::<BlankCustom>::String("Hello 4".to_string()).to_string()
   );
 }
 
@@ -60,8 +60,8 @@ fn test_binary_ops() {
   lang.add_bin_op(
     OperatorChars::Carat,
     CustomBinOp {
-      function: |l: ReturnVal<BlankCustom>, r| {
-        if let (ReturnVal::Int(l), ReturnVal::Int(r)) = (l, r) {
+      function: |l: Argument<BlankCustom>, r| {
+        if let (Argument::Int(l), Argument::Int(r)) = (l, r) {
           Ok(Argument::Int(l.pow(r as u32)))
         } else {
           panic!()

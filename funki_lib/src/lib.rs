@@ -48,6 +48,8 @@ pub enum Argument<C: CustomType> {
   Int(i32),
   /// Basic String type
   String(String),
+  /// Boolean type
+  Bool(bool),
   /// Tuple type
   Tuple(Vec<Argument<C>>),
   /// List type
@@ -55,6 +57,43 @@ pub enum Argument<C: CustomType> {
   /// Custom data types.
   /// If multiple data types are required use aan enum type for the custom type.
   Custom(C),
+  Func(fn(Argument<C>) -> Result<Argument<C>, Box<dyn ToString>>),
+}
+
+impl<C: CustomType> Debug for Argument<C> {
+  fn fmt(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Argument::Bool(b) => write!(fmt, "Bool({})", b),
+      Argument::Int(i) => write!(fmt, "Int({})", i),
+      Argument::String(s) => write!(fmt, "String({})", s),
+      Argument::Tuple(v) => write!(
+        fmt,
+        "Tuple({})",
+        v.iter().map(|i| format!("{:?}", i)).join(", ")
+      ),
+      Argument::List(v) => write!(
+        fmt,
+        "List({})",
+        v.iter().map(|i| format!("{:?}", i)).join(", ")
+      ),
+      Argument::Custom(v) => write!(fmt, "Custom({:?})", v),
+      Argument::Func(f) => write!(fmt, "Func({:?})", f),
+    }
+  }
+}
+
+impl<C: CustomType> ToString for Argument<C> {
+  fn to_string(&self) -> String {
+    match self {
+      Argument::Bool(b) => b.to_string(),
+      Argument::Int(i) => i.to_string(),
+      Argument::String(s) => s.to_string(),
+      Argument::Tuple(v) => format!("({})", v.iter().map(|i| i.to_string()).join(", ")),
+      Argument::List(v) => format!("[{}]", v.iter().map(|i| i.to_string()).join(", ")),
+      Argument::Custom(v) => v.to_string(),
+      Argument::Func(f) => format!("Func({:?})", f),
+    }
+  }
 }
 
 impl<C: CustomType> Clone for Argument<C> {
@@ -62,9 +101,11 @@ impl<C: CustomType> Clone for Argument<C> {
     match &self {
       Argument::Int(i) => Argument::Int(*i),
       Argument::String(s) => Argument::String(s.clone()),
+      Argument::Bool(s) => Argument::Bool(*s),
       Argument::Tuple(t) => Argument::Tuple(t.clone()),
       Argument::List(t) => Argument::List(t.clone()),
       Argument::Custom(c) => Argument::Custom(c.clone()),
+      Argument::Func(c) => Argument::Func(c.clone()),
     }
   }
 }
@@ -204,16 +245,6 @@ impl<C: CustomType> Script<C> {
   }
 }
 
-/// Type for the values returned from the interpretation
-pub enum ReturnVal<T: CustomType> {
-  String(String),
-  Int(i32),
-  Bool(bool),
-  Tuple(Vec<ReturnVal<T>>),
-  List(Vec<ReturnVal<T>>),
-  Custom(T),
-}
-
 impl<'a, C: CustomType> LangFunc<'a, C> {
   /// Adds an argument for aParsedTemplateion call
   ///
@@ -238,7 +269,7 @@ impl<'a, C: CustomType> LangFunc<'a, C> {
   /// let f = x.function("main").unwrap();
   /// f.call().unwrap(); // -> ReturnVal::Int(5)
   /// ```
-  pub fn call(&self) -> Result<ReturnVal<C>, LanguageErr> {
+  pub fn call(&self) -> Result<Argument<C>, LanguageErr> {
     if let Some(x) = &self.arg {
       interpret(
         &self.lang.temp,
@@ -396,40 +427,6 @@ impl Debug for LanguageErr {
       LanguageErr::NoLoc(l) => {
         write!(fmt, "Error: {}", l)
       }
-    }
-  }
-}
-
-impl<C: CustomType> Debug for ReturnVal<C> {
-  fn fmt(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
-    match self {
-      ReturnVal::Bool(b) => write!(fmt, "Bool({})", b),
-      ReturnVal::Int(i) => write!(fmt, "Int({})", i),
-      ReturnVal::String(s) => write!(fmt, "String({})", s),
-      ReturnVal::Tuple(v) => write!(
-        fmt,
-        "Tuple({})",
-        v.iter().map(|i| format!("{:?}", i)).join(", ")
-      ),
-      ReturnVal::List(v) => write!(
-        fmt,
-        "List({})",
-        v.iter().map(|i| format!("{:?}", i)).join(", ")
-      ),
-      ReturnVal::Custom(v) => write!(fmt, "Custom({:?})", v),
-    }
-  }
-}
-
-impl<C: CustomType> ToString for ReturnVal<C> {
-  fn to_string(&self) -> String {
-    match self {
-      ReturnVal::Bool(b) => b.to_string(),
-      ReturnVal::Int(i) => i.to_string(),
-      ReturnVal::String(s) => s.to_string(),
-      ReturnVal::Tuple(v) => format!("({})", v.iter().map(|i| i.to_string()).join(", ")),
-      ReturnVal::List(v) => format!("[{}]", v.iter().map(|i| i.to_string()).join(", ")),
-      ReturnVal::Custom(v) => v.to_string(),
     }
   }
 }
