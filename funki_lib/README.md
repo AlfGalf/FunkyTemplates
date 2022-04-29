@@ -1,13 +1,13 @@
 # Funki Lang
 
-Funki is a embeddable functional customisable langauge.
+Funki is a embeddable functional entendible langauge.
 
 It is currently in Alpha. Much of the language is still open to being changed
-and has not be finalised.
+and has not be finalised. The language does not ahve source stability.
 
 Funki is open to contributions.
 
-Funki is built on Lalrpop.
+The Funki parser is built on Lalrpop.
 
 It currently supports:
 

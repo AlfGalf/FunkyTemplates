@@ -1,7 +1,7 @@
 use std::io;
 use std::process::exit;
 
-use funki_templates::*;
+use funki_lang::*;
 
 fn main() {
   let lang = Language::<BlankCustom>::new();
