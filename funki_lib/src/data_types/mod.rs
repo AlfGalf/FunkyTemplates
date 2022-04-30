@@ -8,7 +8,7 @@ use itertools::Itertools;
 
 use crate::ast::Pattern;
 use crate::external_operators::CustomType;
-use crate::{Argument, Program, ReturnVal};
+use crate::{Argument, Customs, Program, ReturnVal};
 
 /// Errors from the interpreter, can optionally have location information added
 #[derive(Clone)]
@@ -44,7 +44,7 @@ impl InterpretError {
 
 // Values within the interpreter
 // Cant use default implementations as CustomType cannot implement those types
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum InterpretVal<C: CustomType> {
   Int(i32),
   Bool(bool),
@@ -53,7 +53,29 @@ pub enum InterpretVal<C: CustomType> {
   Tuple(Vec<InterpretVal<C>>),
   List(Vec<InterpretVal<C>>),
   Lambda(Pattern, Frame<C>),
+  BuiltIn(
+    String,
+    fn(
+      InterpretVal<C>,
+      &mut Frame<C>,
+      &Customs<C>,
+      String,
+    ) -> Result<InterpretVal<C>, InterpretError>,
+  ),
   Custom(C),
+}
+
+impl<C: CustomType> PartialEq for InterpretVal<C> {
+  fn eq(&self, other: &Self) -> bool {
+    match (self, other) {
+      (InterpretVal::Int(l), InterpretVal::Int(r)) => l == r,
+      (InterpretVal::Bool(l), InterpretVal::Bool(r)) => l == r,
+      (InterpretVal::String(l), InterpretVal::String(r)) => l == r,
+      (InterpretVal::Tuple(l), InterpretVal::Tuple(r)) => l == r,
+      (InterpretVal::List(l), InterpretVal::List(r)) => l == r,
+      _ => false,
+    }
+  }
 }
 
 impl<C: CustomType> Debug for InterpretVal<C> {
@@ -67,6 +89,7 @@ impl<C: CustomType> Debug for InterpretVal<C> {
       InterpretVal::List(l) => write!(f, "List({:?})", l),
       InterpretVal::Lambda(l, _) => write!(f, "Lambda({:?})", l),
       InterpretVal::Custom(c) => write!(f, "Custom({:?})", c),
+      InterpretVal::BuiltIn(n, _) => write!(f, "Builtin({n})"),
     }
   }
 }
@@ -369,6 +392,9 @@ impl<C: CustomType> InterpretVal<C> {
       )),
       InterpretVal::Lambda(_, _) => Err(InterpretError::new(
         "Cannot have lambda return type to root.",
+      )),
+      InterpretVal::BuiltIn(_, _) => Err(InterpretError::new(
+        "Cannot have built-in return type to root.",
       )),
       InterpretVal::Custom(c) => Ok(ReturnVal::Custom((*c).clone())),
     }

@@ -110,24 +110,24 @@ fn interpret_recurse<C: CustomType>(
     },
     FuncCall(f, a) => {
       let arg = interpret_recurse(a, env, customs)?;
-      {
-        if let ExprInner::Var(n) = f.val.clone() {
-          built_in(&n, arg.clone(), env, customs)
-        } else {
-          None
-        }
-      }
-      .unwrap_or_else(|| {
-        let val = interpret_recurse(f, env, customs)?;
+      let val = interpret_recurse(f, env, customs)?;
 
-        match val {
-          InterpretVal::Function(p) => interpret_function(&p, env, arg, customs),
-          InterpretVal::Lambda(p, mut e) => interpret_lambda(p, &mut e, arg, customs),
-          _ => Err(InterpretError::new("Called value that is not a function.")),
-        }
-      })
+      match val {
+        InterpretVal::Function(p) => interpret_function(&p, env, arg, customs),
+        InterpretVal::Lambda(p, mut e) => interpret_lambda(p, &mut e, arg, customs),
+        InterpretVal::BuiltIn(n, f) => f(arg, env, customs, n),
+        _ => Err(InterpretError::new("Called value that is not a function.")),
+      }
     }
-    Var(s) => env.find(s),
+    Var(s) => {
+      if let Ok(e) = env.find(s) {
+        Ok(e)
+      } else if let Some(e) = built_in(s, customs) {
+        Ok(e)
+      } else {
+        Err(InterpretError::new("Cannot resolve variable {s}."))
+      }
+    }
     InterpolationString(vs) => Ok(InterpretVal::String(
       vs.iter()
         .map(|p| match p {

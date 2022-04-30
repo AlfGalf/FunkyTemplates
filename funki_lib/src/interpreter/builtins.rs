@@ -4,27 +4,44 @@ use crate::{CustomType, InterpretError, InterpretVal};
 // Checks if the token refers to an inbuilt function
 // If it does, executes that function and returns Some() with the result of the function
 // Otherwise, returns none
-pub fn built_in<C: CustomType>(
-  name: &str,
-  arg: InterpretVal<C>,
-  frame: &mut Frame<C>,
-  customs: &Customs<C>,
-) -> Option<Result<InterpretVal<C>, InterpretError>> {
+pub fn built_in<C: CustomType>(name: &str, customs: &Customs<C>) -> Option<InterpretVal<C>> {
   match name {
-    "list" => Some(list_func(arg)),
-    "get" => Some(get_func(arg)),
-    "map" => Some(map_func(arg, frame, customs)),
-    "filter" => Some(filter_func(arg, frame, customs)),
-    "len" => Some(length_func(arg)),
-    "any" => Some(any_func(arg, frame, customs)),
-    "all" => Some(all_func(arg, frame, customs)),
-    "fold" => Some(fold_func(arg, frame, customs)),
-    n => customs.built_ins.get(n).map(|f| f.call_func(&arg)),
+    "list" => Some(InterpretVal::BuiltIn(name.to_string(), list_func)),
+    "get" => Some(InterpretVal::BuiltIn(name.to_string(), get_func)),
+    "map" => Some(InterpretVal::BuiltIn(name.to_string(), map_func)),
+    "filter" => Some(InterpretVal::BuiltIn(name.to_string(), filter_func)),
+    "len" => Some(InterpretVal::BuiltIn(name.to_string(), length_func)),
+    "any" => Some(InterpretVal::BuiltIn(name.to_string(), any_func)),
+    "all" => Some(InterpretVal::BuiltIn(name.to_string(), all_func)),
+    "fold" => Some(InterpretVal::BuiltIn(name.to_string(), fold_func)),
+    n => {
+      if customs.built_ins.contains_key(n) {
+        Some(InterpretVal::BuiltIn(n.to_string(), eval_custom))
+      } else {
+        None
+      }
+    }
   }
 }
 
 // Executes the builtin list function, which converts a tuple into a list.
-fn list_func<C: CustomType>(arg: InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+fn eval_custom<C: CustomType>(
+  arg: InterpretVal<C>,
+  _: &mut Frame<C>,
+  customs: &Customs<C>,
+  n: String,
+) -> Result<InterpretVal<C>, InterpretError> {
+  let a = arg.unwrap_tuple();
+  customs.built_ins.get(&n).unwrap().call_func(&a)
+}
+
+// Executes the builtin list function, which converts a tuple into a list.
+fn list_func<C: CustomType>(
+  arg: InterpretVal<C>,
+  _: &mut Frame<C>,
+  _: &Customs<C>,
+  _: String,
+) -> Result<InterpretVal<C>, InterpretError> {
   let a = arg.unwrap_tuple();
 
   if let InterpretVal::Tuple(v) = a {
@@ -35,7 +52,12 @@ fn list_func<C: CustomType>(arg: InterpretVal<C>) -> Result<InterpretVal<C>, Int
 }
 
 // Executes the builtin len function
-fn length_func<C: CustomType>(arg: InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+fn length_func<C: CustomType>(
+  arg: InterpretVal<C>,
+  _: &mut Frame<C>,
+  _: &Customs<C>,
+  _: String,
+) -> Result<InterpretVal<C>, InterpretError> {
   if let InterpretVal::List(t) = arg.unwrap_tuple() {
     Ok(InterpretVal::Int(t.len() as i32))
   } else {
@@ -46,7 +68,12 @@ fn length_func<C: CustomType>(arg: InterpretVal<C>) -> Result<InterpretVal<C>, I
 }
 
 // Executes the builtin get function, which gets an item at a specific index in a list
-fn get_func<C: CustomType>(arg: InterpretVal<C>) -> Result<InterpretVal<C>, InterpretError> {
+fn get_func<C: CustomType>(
+  arg: InterpretVal<C>,
+  _: &mut Frame<C>,
+  _: &Customs<C>,
+  _: String,
+) -> Result<InterpretVal<C>, InterpretError> {
   let a = arg.unwrap_tuple();
 
   if let InterpretVal::Tuple(v) = a {
@@ -79,6 +106,7 @@ fn map_func<C: CustomType>(
   arg: InterpretVal<C>,
   frame: &mut Frame<C>,
   customs: &Customs<C>,
+  _: String,
 ) -> Result<InterpretVal<C>, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
@@ -123,6 +151,7 @@ fn filter_func<C: CustomType>(
   arg: InterpretVal<C>,
   frame: &mut Frame<C>,
   customs: &Customs<C>,
+  _: String,
 ) -> Result<InterpretVal<C>, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
@@ -190,6 +219,7 @@ fn any_func<C: CustomType>(
   arg: InterpretVal<C>,
   frame: &mut Frame<C>,
   customs: &Customs<C>,
+  _: String,
 ) -> Result<InterpretVal<C>, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
@@ -252,6 +282,7 @@ fn all_func<C: CustomType>(
   arg: InterpretVal<C>,
   frame: &mut Frame<C>,
   customs: &Customs<C>,
+  _: String,
 ) -> Result<InterpretVal<C>, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 2 {
@@ -315,6 +346,7 @@ fn fold_func<C: CustomType>(
   arg: InterpretVal<C>,
   frame: &mut Frame<C>,
   customs: &Customs<C>,
+  _: String,
 ) -> Result<InterpretVal<C>, InterpretError> {
   if let InterpretVal::Tuple(t) = arg {
     if t.len() == 3 {

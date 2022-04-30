@@ -20,7 +20,7 @@ impl ParserState {
   }
 }
 
-// Template
+// Script
 pub struct Program {
   pub env: HashMap<String, Vec<Pattern>>,
 }
