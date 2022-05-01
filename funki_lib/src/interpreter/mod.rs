@@ -205,7 +205,7 @@ fn pattern_match<C: CustomType>(
   env: &mut Frame<C>,
   customs: &Customs<C>,
 ) -> Result<Option<Frame<C>>, InterpretError> {
-  let mut res = Frame::new();
+  let mut res = HashMap::<String, InterpretVal<C>>::new();
 
   let mut stack = vec![(param.unwrap_tuple(), arg.unwrap_tuple())];
 
@@ -222,7 +222,13 @@ fn pattern_match<C: CustomType>(
         start: _,
         end: _,
       } => {
-        res.add_val(s.clone(), &cur_arg)?;
+        if s != "_" {
+          if res.contains_key(&s) {
+            return Err(InterpretError::new("Repeated variable name in pattern."));
+          } else {
+            res.insert(s.clone(), cur_arg);
+          }
+        }
       }
       Expr {
         val: Tuple(s),
@@ -251,7 +257,8 @@ fn pattern_match<C: CustomType>(
       }
     }
   }
-  res.set_next(env);
+
+  let res = Frame::new_from_vals(res, env.clone());
 
   Ok(Some(res))
 }

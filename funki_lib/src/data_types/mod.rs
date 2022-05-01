@@ -3,6 +3,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::ops::Add;
+use std::rc::Rc;
 
 use itertools::Itertools;
 
@@ -418,7 +419,7 @@ impl Debug for InterpretError {
 // Frame for holding the environment in an execution of a program
 #[derive(Debug, Clone, PartialEq)]
 pub struct Frame<C: CustomType> {
-  pub(crate) frame: HashMap<String, InterpretVal<C>>,
+  pub(crate) frame: Rc<HashMap<String, InterpretVal<C>>>,
   next: Option<RefCell<Box<Frame<C>>>>,
 }
 
@@ -426,7 +427,7 @@ impl<C: CustomType> Frame<C> {
   // Creates a new blank frame
   pub fn new() -> Self {
     Self {
-      frame: HashMap::new(),
+      frame: Rc::new(HashMap::new()),
       next: None,
     }
   }
@@ -434,24 +435,21 @@ impl<C: CustomType> Frame<C> {
   // Builds a new frame from a template
   pub fn from_template(t: &Program) -> Self {
     Self {
-      frame: t
-        .env
-        .iter()
-        .map(|(a, b)| (a.clone(), InterpretVal::Function(b.clone())))
-        .collect(),
+      frame: Rc::new(
+        t.env
+          .iter()
+          .map(|(a, b)| (a.clone(), InterpretVal::Function(b.clone())))
+          .collect(),
+      ),
       next: None,
     }
   }
 
-  // Adds a new value to the frame
-  pub fn add_val(&mut self, name: String, expr: &InterpretVal<C>) -> Result<(), InterpretError> {
-    if let Entry::Vacant(e) = self.frame.entry(name) {
-      e.insert(expr.clone());
-      Ok(())
-    } else {
-      Err(InterpretError::new(
-        "Multiple variables within the same frame.",
-      ))
+  // Creates a new frame from the required values
+  pub fn new_from_vals(vals: HashMap<String, InterpretVal<C>>, next: Frame<C>) -> Self {
+    Self {
+      frame: Rc::new(vals),
+      next: Some(RefCell::new(Box::new(next.clone()))),
     }
   }
 
