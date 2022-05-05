@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-funki_lang = { path = "../../funki_lib" }
+funki_lang = "^0.1"
 gcd = "2.1.0"

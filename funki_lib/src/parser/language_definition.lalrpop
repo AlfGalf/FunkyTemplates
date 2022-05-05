@@ -230,7 +230,7 @@ UnaryExpr: Expr = {
     CallTerm,
 }
 
-// Function
+// Function invocation
 CallTerm: Expr = {
     <l: @L> <e:CallTerm> "(" <l1:@L> <c: Comma<Expr>> <r1:@R> ")" <r:@R> =>
           Expr::func_call(l, e, Expr::tuple(l1, c, r1), r),
